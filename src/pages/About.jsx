@@ -1,21 +1,22 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
-import Home from "./pages/Home";
-import Courses from "./pages/Courses";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import Login from "./pages/Login";
-
-export default function App() {
+export default function About() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/courses" element={<Courses />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/login" element={<Login />} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <Navbar />
+
+      <section className="py-24 px-6 max-w-5xl mx-auto">
+        <h1 className="text-5xl font-bold mb-8">
+          About Paradise Sweets Academy
+        </h1>
+
+        <p className="text-lg text-gray-600 leading-8">
+          Paradise Sweets Academy is dedicated to teaching professional cake,
+          bakery, sweets, and food preparation through high-quality online
+          courses. Our mission is to help students learn practical skills from
+          anywhere using organized video lessons.
+        </p>
+      </section>
+    </>
   );
 }
