@@ -34,7 +34,7 @@ return(
 
 <h2 className="text-center text-5xl font-bold">
 
-Why Choose Paradise?
+Why Choose Paradise Sweets Academy?
 
 </h2>
 

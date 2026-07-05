@@ -9,13 +9,13 @@ return(
 
 <>
 
-<Navbar/>
+<Navbar />
 
-<Hero/>
+<Hero />
 
-<Courses/>
+<WhyChoose />
 
-<WhyChoose/>
+<Courses />
 
 <a
 
