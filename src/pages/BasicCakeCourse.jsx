@@ -8,11 +8,11 @@ const lessons = [
   },
   {
     day: "Day 02",
-    video: "https://www.youtube.com/embed/YOUR_VIDEO_ID_2",
+    video: "https://www.youtube.com/embed/3yybjhMuUFM",
   },
   {
     day: "Day 03",
-    video: "https://www.youtube.com/embed/YOUR_VIDEO_ID_3",
+    video: "https://www.youtube.com/embed/HDuCbD6XrRE",
   },
   {
     day: "Day 04",
