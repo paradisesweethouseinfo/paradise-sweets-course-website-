@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import students from "../data/students";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -9,22 +10,34 @@ export default function Login() {
   const [error, setError] = useState("");
 
   const handleLogin = (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    // Student Login Credentials
-    if (studentId === "0001" && password === "#Admin2007") {
-      // Save login status
-      localStorage.setItem("studentLoggedIn", "true");
+  const student = students.find(
+    (s) =>
+      s.id === studentId &&
+      s.password === password
+  );
 
-      // Optional: Save Student ID
-      localStorage.setItem("studentId", studentId);
+  if (student) {
+    // Save login status
+    localStorage.setItem("studentLoggedIn", "true");
 
-      // Redirect to Courses Page
-      navigate("/courses");
-    } else {
-      setError("Invalid Student ID or Password");
-    }
-  };
+    // Save student details
+    localStorage.setItem("studentId", student.id);
+    localStorage.setItem("studentName", student.name);
+
+    // Save purchased courses
+    localStorage.setItem(
+      "studentCourses",
+      JSON.stringify(student.courses)
+    );
+
+    // Go to Courses page
+    navigate("/courses");
+  } else {
+    setError("Invalid Student ID or Password");
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-50 px-4">

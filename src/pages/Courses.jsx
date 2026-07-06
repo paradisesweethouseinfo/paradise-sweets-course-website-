@@ -1,6 +1,12 @@
+const purchasedCourses = JSON.parse(
+  localStorage.getItem("studentCourses") || "[]"
+);
 import { Link } from "react-router-dom";
 
 export default function Courses() {
+  const purchasedCourses = JSON.parse(
+  localStorage.getItem("studentCourses") || "[]"
+);
   return (
     <>
       
@@ -9,14 +15,20 @@ export default function Courses() {
         <div className="max-w-7xl mx-auto px-6">
 
           <div className="text-center mb-14">
-            <h1 className="text-5xl font-bold text-gray-900">
-              Our Courses
-            </h1>
+             <h1 className="text-5xl font-bold text-gray-900"></h1>
+                 Welcome,
+                <span className="text-green-600">
+                {" "}
+                {localStorage.getItem("studentName")}
+                
+              </span>
+              
 
-            <p className="text-gray-600 mt-4 text-lg">
-              Learn professional cake, bakery and sweets making from home.
-            </p>
-          </div>
+  <p className="text-gray-600 mt-4 text-lg">
+    Access your enrolled courses below.
+  </p>
+
+</div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
@@ -50,12 +62,25 @@ export default function Courses() {
 
                 </div>
 
-                <Link
-                  to="/courses/basic-cake"
-                  className="block text-center mt-6 bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition"
-                >
-                  View Course
-                </Link>
+                {purchasedCourses.includes("basic-cake") ? (
+
+  <Link
+    to="/courses/basic-cake"
+    className="block text-center mt-6 bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition"
+  >
+    View Course
+  </Link>
+
+) : (
+
+  <button
+    disabled
+    className="block w-full mt-6 bg-gray-400 text-white py-3 rounded-full cursor-not-allowed"
+  >
+    🔒 Locked
+  </button>
+
+)}
 
               </div>
 
