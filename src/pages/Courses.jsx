@@ -1,10 +1,9 @@
-import Navbar from "../components/Navbar";
 import { Link } from "react-router-dom";
 
 export default function Courses() {
   return (
     <>
-      <Navbar />
+      
 
       <section className="bg-green-50 py-20">
         <div className="max-w-7xl mx-auto px-6">

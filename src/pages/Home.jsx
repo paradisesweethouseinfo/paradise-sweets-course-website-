@@ -1,4 +1,3 @@
-import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
 import Courses from "../components/Courses";
 import WhyChoose from "../components/WhyChoose";
@@ -9,7 +8,7 @@ return(
 
 <>
 
-<Navbar />
+
 
 <Hero />
 
