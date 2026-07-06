@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import Footer from "./components/Footer";
 
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -15,6 +16,7 @@ function Layout() {
     <>
       <Navbar />
       <Outlet />
+      <Footer />
     </>
   );
 }
