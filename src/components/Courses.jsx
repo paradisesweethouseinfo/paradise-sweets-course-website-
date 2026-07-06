@@ -1,77 +1,93 @@
-import CourseCard from "./CourseCard";
+import { Link } from "react-router-dom";
 
-const courses = [
+export default function Courses() {
+  return (
+    <section id="courses" className="bg-gray-50 py-24">
 
-{
-image:"/courses/basic.jpg",
-title:"Basic Cake Course",
-description:"Perfect for beginners who want to master baking."
-},
+      <div className="max-w-7xl mx-auto px-6">
 
-{
-image:"/courses/advanced.jpg",
-title:"Advanced Cake Course",
-description:"Professional decorating and advanced techniques."
-},
+        <div className="text-center mb-16">
 
-{
-image:"/courses/sweets.jpg",
-title:"Traditional Sweets",
-description:"Traditional and modern sweet making."
-},
+          <h2 className="text-5xl font-bold text-gray-900">
+            Featured Courses
+          </h2>
 
-{
-image:"/courses/bakery.jpg",
-title:"Bakery Essentials",
-description:"Bread, buns, pastries and bakery recipes."
-}
+          <p className="text-gray-600 mt-4 text-lg">
+            Start learning with our professional online courses.
+          </p>
 
-];
+        </div>
 
-export default function Courses(){
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
-return(
+          {/* Basic Cake Course */}
 
-<section id="courses" className="section bg-graybg">
+          <div className="bg-white rounded-3xl shadow-lg overflow-hidden hover:-translate-y-2 transition">
 
-<div className="container">
+            <img
+              src="/images/basic-cake.png"
+              alt="Basic Cake Course"
+              className="w-full h-56 object-cover"
+            />
 
-<h2 className="text-5xl font-bold text-center">
+            <div className="p-6">
 
-Featured Courses
+              <span className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                Available Now
+              </span>
 
-</h2>
+              <h3 className="text-2xl font-bold mt-4">
+                Basic Cake Course
+              </h3>
 
-<p className="text-center text-gray-600 mt-5">
+              <p className="text-gray-600 mt-3">
+                8 Days of professional cake lessons for beginners.
+              </p>
 
-Choose your learning path.
+              <Link
+                to="/courses/basic-cake"
+                className="block mt-6 text-center bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition"
+              >
+                View Course
+              </Link>
 
-</p>
+            </div>
 
-<div className="grid lg:grid-cols-4 md:grid-cols-2 gap-8 mt-16">
+          </div>
 
-{
+          {/* Coming Soon Cards */}
 
-courses.map((course,index)=>
+          {[
+            "Advanced Cake Course",
+            "Bakery Course",
+            "Traditional Sweets",
+          ].map((course) => (
 
-<CourseCard
+            <div
+              key={course}
+              className="bg-white rounded-3xl shadow-lg p-8 flex flex-col justify-center items-center text-center hover:-translate-y-2 transition"
+            >
 
-key={index}
+              <div className="w-28 h-28 rounded-full bg-green-100 flex items-center justify-center text-6xl">
+                🚧
+              </div>
 
-{...course}
+              <h3 className="text-2xl font-bold mt-6">
+                {course}
+              </h3>
 
-/>
+              <p className="text-gray-500 mt-3">
+                Coming Soon
+              </p>
 
-)
+            </div>
 
-}
+          ))}
 
-</div>
+        </div>
 
-</div>
+      </div>
 
-</section>
-
-)
-
+    </section>
+  );
 }
