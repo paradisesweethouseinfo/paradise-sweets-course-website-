@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Navbar from "../components/Navbar";
+
 
 const lessons = [
   {
@@ -41,7 +41,7 @@ export default function BasicCakeCourse() {
 
   return (
     <>
-      <Navbar />
+      
 
       <section className="bg-gray-50 min-h-screen pt-32 pb-20">
 
