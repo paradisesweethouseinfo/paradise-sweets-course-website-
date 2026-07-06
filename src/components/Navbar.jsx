@@ -11,9 +11,10 @@ export default function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center">
           <img
-            src="/logo.png"
-            alt="Paradise Sweets Academy"
-            className="h-12 md:h-14 w-auto"
+          src="/logo.png"
+          alt="Paradise Sweets Academy"
+          className="h-16 md:h-20 w-auto transition-transform duration-300 hover:scale-110"
+          
           />
         </Link>
 

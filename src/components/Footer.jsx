@@ -170,7 +170,7 @@ export default function Footer() {
 
           <br />
 
-          Designed & Developed by Paradise Sweets Academy.
+          Designed & Developed by Sanithu Udaneth.
 
         </div>
 
