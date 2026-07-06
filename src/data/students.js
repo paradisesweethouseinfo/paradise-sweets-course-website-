@@ -28,6 +28,25 @@ const students = [
       "basic-cake",
       "advanced-cake"
     ]
+  },
+  
+  {
+    id: "1426",
+    password: "basic0001",
+    name: "Nayomi Kumari",
+    courses: [
+      "basic-cake",
+      
+    ]
+  },
+    {
+    id: "1427",
+    password: "basic0002",
+    name: "Chalani Nadeesha",
+    courses: [
+      "basic-cake",
+      
+    ]
   }
 ];
 
