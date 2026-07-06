@@ -1,75 +1,108 @@
-import { Award, Laptop, PlayCircle, Clock } from "lucide-react";
+import { motion } from "framer-motion";
 
-export default function WhyChoose(){
-
-const items=[
-
-{
-icon:<Award size={42}/>,
-title:"Professional Instructor"
-},
-
-{
-icon:<Laptop size={42}/>,
-title:"Study Anywhere"
-},
-
-{
-icon:<PlayCircle size={42}/>,
-title:"HD Video Lessons"
-},
-
-{
-icon:<Clock size={42}/>,
-title:"Lifetime Access"
-}
-
+const features = [
+  {
+    icon: "▶",
+    title: "HD Video Lessons",
+    text: "Easy-to-follow, step-by-step professional video lessons."
+  },
+  {
+    icon: "📱",
+    title: "Learn Anywhere",
+    text: "Access your lessons on mobile, tablet or desktop."
+  },
+  {
+    icon: "🧁",
+    title: "Practical Learning",
+    text: "Learn by following real baking demonstrations."
+  },
+  {
+    icon: "⭐",
+    title: "Beginner Friendly",
+    text: "Designed for beginners with simple explanations."
+  }
 ];
 
-return(
+export default function WhyChoose() {
+  return (
+    <section className="relative py-28 bg-white overflow-hidden">
 
-<section className="section">
+      {/* Background Glow */}
 
-<div className="container">
+      <div className="absolute -left-40 top-20 w-80 h-80 bg-green-100 rounded-full blur-3xl opacity-40"></div>
 
-<h2 className="text-center text-5xl font-bold">
+      <div className="absolute -right-32 bottom-0 w-96 h-96 bg-green-50 rounded-full blur-3xl opacity-60"></div>
 
-Why Choose Paradise Sweets Academy?
+      <div className="max-w-7xl mx-auto px-6 relative z-10">
 
-</h2>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: .7 }}
+          className="text-center mb-16"
+        >
 
-<div className="grid lg:grid-cols-4 gap-8 mt-16">
+          <span className="text-green-600 font-semibold tracking-widest uppercase">
+            Why Choose Us
+          </span>
 
-{
+          <h2 className="text-4xl md:text-5xl font-black mt-4 text-gray-900">
+            Why Choose Paradise Sweets Academy?
+          </h2>
 
-items.map((item,index)=>
+          <p className="mt-6 text-gray-600 text-lg max-w-2xl mx-auto">
+            Professional online baking education designed to help you learn with confidence from anywhere.
+          </p>
 
-<div key={index} className="card text-center p-10">
+        </motion.div>
 
-<div className="text-primary flex justify-center">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
-{item.icon}
+          {features.map((item, index) => (
 
-</div>
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 70 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{
+                duration: .6,
+                delay: index * .15
+              }}
+              whileHover={{
+                y: -12,
+                scale: 1.03
+              }}
+              className="bg-white rounded-3xl shadow-xl border border-green-100 p-8 text-center transition-all duration-300 hover:shadow-2xl"
+            >
 
-<h3 className="mt-6 text-xl font-semibold">
+              <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center text-4xl">
 
-{item.title}
+                {item.icon}
 
-</h3>
+              </div>
 
-</div>
+              <h3 className="mt-6 text-2xl font-bold text-gray-900">
 
-)
+                {item.title}
 
-}
+              </h3>
 
-</div>
+              <p className="mt-4 text-gray-600 leading-7">
 
-</div>
+                {item.text}
 
-</section>
+              </p>
 
-)
+            </motion.div>
 
+          ))}
+
+        </div>
+
+      </div>
+
+    </section>
+  );
 }
