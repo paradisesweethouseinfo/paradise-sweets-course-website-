@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
-import Footer from "./components/Footer";
 
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
 
 import Home from "./pages/Home";
 import Courses from "./pages/Courses";
@@ -10,6 +12,9 @@ import BasicCakeCourse from "./pages/BasicCakeCourse";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
+
+import AdminLogin from "./pages/AdminLogin";
+import Admin from "./pages/Admin";
 
 function Layout() {
   return (
@@ -26,13 +31,15 @@ export default function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* All pages with Navbar */}
+        {/* Pages with Navbar & Footer */}
         <Route element={<Layout />}>
+
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/login" element={<Login />} />
 
+          {/* Student Protected Pages */}
           <Route
             path="/courses"
             element={
@@ -50,6 +57,23 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Admin Login */}
+          <Route
+            path="/admin"
+            element={<AdminLogin />}
+          />
+
+          {/* Admin Dashboard */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AdminProtectedRoute>
+                <Admin />
+              </AdminProtectedRoute>
+            }
+          />
+
         </Route>
 
       </Routes>
