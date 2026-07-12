@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import students from "../data/students";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -9,45 +10,77 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = (e) => {
-  e.preventDefault();
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
 
-  const student = students.find(
-    (s) =>
-      s.id === studentId &&
-      s.password === password
-  );
+    alert("Step 1 - Login button clicked");
+    console.log("Step 1");
 
-  if (student) {
-    // Save login status
-    localStorage.setItem("studentLoggedIn", "true");
+    try {
+      alert("Step 2 - Creating Firestore reference");
+      console.log("Step 2");
 
-    // Save student details
-    localStorage.setItem("studentId", student.id);
-    localStorage.setItem("studentName", student.name);
+      const studentRef = doc(db, "students", studentId);
 
-    // Save purchased courses
-    localStorage.setItem(
-      "studentCourses",
-      JSON.stringify(student.courses)
-    );
+      alert("Step 3 - Reading Firestore");
+      console.log("Step 3");
 
-    // Go to Courses page
-    navigate("/courses");
-  } else {
-    setError("Invalid Student ID or Password");
-  }
-};
+      const studentSnap = await getDoc(studentRef);
+
+      alert("Step 4 - Firestore replied");
+      console.log("Step 4", studentSnap);
+
+      if (!studentSnap.exists()) {
+        setError("Student ID not found.");
+        alert("Student document not found");
+        return;
+      }
+
+      const student = studentSnap.data();
+
+      alert("Step 5 - Student found");
+      console.log(student);
+
+      if (!student.active) {
+        setError("Your account has been disabled.");
+        alert("Account disabled");
+        return;
+      }
+
+      if (student.password !== password) {
+        setError("Incorrect password.");
+        alert("Wrong password");
+        return;
+      }
+
+      alert("Step 6 - Login successful");
+
+      localStorage.setItem("studentLoggedIn", "true");
+      localStorage.setItem("studentId", studentId);
+      localStorage.setItem("studentName", student.name);
+      localStorage.setItem(
+        "studentCourses",
+        JSON.stringify(student.courses || [])
+      );
+
+      navigate("/courses");
+
+    } catch (err) {
+      console.error("Firebase Error:", err);
+      alert("ERROR: " + err.message);
+      setError(err.message);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-50 px-4">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8">
 
-        {/* Logo */}
         <div className="flex justify-center mb-5">
           <img
             src="/logo.png"
-            alt="Paradise Sweet Academy"
+            alt="Paradise Sweets Academy"
             className="w-24 h-24 object-contain"
           />
         </div>
@@ -57,11 +90,11 @@ export default function Login() {
         </h1>
 
         <p className="text-center text-gray-500 mt-2 mb-6">
-          Welcome to Paradise Sweet Academy
+          Welcome to Paradise Sweets Academy
         </p>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-100 border border-red-300 text-red-700 px-4 py-3">
+          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl">
             {error}
           </div>
         )}
@@ -75,13 +108,13 @@ export default function Login() {
 
             <input
               type="text"
-              placeholder="Enter Student ID"
               value={studentId}
               onChange={(e) => {
                 setStudentId(e.target.value);
                 setError("");
               }}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Enter Student ID"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3"
               required
             />
           </div>
@@ -93,29 +126,25 @@ export default function Login() {
 
             <input
               type="password"
-              placeholder="Enter Password"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError("");
               }}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Enter Password"
+              className="w-full border border-gray-300 rounded-xl px-4 py-3"
               required
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition duration-300"
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl"
           >
             Login
           </button>
 
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-8">
-          Access is available only for enrolled students.
-        </p>
 
       </div>
     </div>
