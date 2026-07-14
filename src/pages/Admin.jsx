@@ -11,6 +11,8 @@ import {
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase/firebase";
 
+const ADMIN_API_URL = "http://localhost:8787";
+
 const AVAILABLE_COURSES = [
   {
     id: "basic-cake",
@@ -33,7 +35,9 @@ const AVAILABLE_COURSES = [
 const EMPTY_FORM = {
   studentId: "",
   name: "",
-  email: "",
+  loginMethod: "google",
+  gmailUsername: "",
+  password: "",
   active: true,
   courses: [],
 };
@@ -44,6 +48,7 @@ export default function Admin() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -101,14 +106,10 @@ export default function Admin() {
 
       setStudents(studentList);
     } catch (err) {
-      console.error(
-        "Student loading error:",
-        err
-      );
+      console.error("Student loading error:", err);
 
       setError(
-        err.message ||
-          "Unable to load students."
+        err.message || "Unable to load students."
       );
     } finally {
       setLoading(false);
@@ -125,7 +126,7 @@ export default function Admin() {
 
     window.setTimeout(() => {
       setMessage("");
-    }, 3000);
+    }, 4000);
   };
 
   const resetStudentForm = () => {
@@ -136,13 +137,30 @@ export default function Admin() {
 
   const openAddStudentForm = () => {
     setError("");
+    setMessage("");
     setEditingDocumentId("");
     setStudentForm(EMPTY_FORM);
     setShowStudentForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const openEditStudentForm = (student) => {
+    const savedEmail = String(
+      student.email || ""
+    ).toLowerCase();
+
+    const gmailUsername = savedEmail.endsWith(
+      "@gmail.com"
+    )
+      ? savedEmail.slice(0, -10)
+      : "";
+
     setError("");
+    setMessage("");
 
     setEditingDocumentId(student.documentId);
 
@@ -152,7 +170,10 @@ export default function Admin() {
         student.documentId ||
         "",
       name: student.name || "",
-      email: student.email || "",
+      loginMethod:
+        student.loginMethod || "google",
+      gmailUsername,
+      password: "",
       active: student.active === true,
       courses: Array.isArray(student.courses)
         ? student.courses
@@ -165,6 +186,21 @@ export default function Admin() {
       top: 0,
       behavior: "smooth",
     });
+  };
+
+  const selectLoginMethod = (loginMethod) => {
+    if (editingDocumentId) {
+      return;
+    }
+
+    setStudentForm((currentForm) => ({
+      ...currentForm,
+      loginMethod,
+      gmailUsername: "",
+      password: "",
+    }));
+
+    setError("");
   };
 
   const handleFormCourseChange = (courseId) => {
@@ -190,143 +226,286 @@ export default function Admin() {
     });
   };
 
+  const studentIdAlreadyExists = (
+    cleanStudentId
+  ) => {
+    return students.some((student) => {
+      const savedStudentId = String(
+        student.studentId ||
+          student.documentId
+      );
+
+      return savedStudentId === cleanStudentId;
+    });
+  };
+
+  const emailAlreadyExists = (email) => {
+    return students.some(
+      (student) =>
+        String(
+          student.email || ""
+        ).toLowerCase() === email
+    );
+  };
+
+  const createGoogleStudent = async ({
+    studentId,
+    name,
+    active,
+    courses,
+  }) => {
+    const gmailUsername =
+      studentForm.gmailUsername
+        .trim()
+        .toLowerCase()
+        .replace("@gmail.com", "")
+        .replace(/\s/g, "");
+
+    if (!gmailUsername) {
+      throw new Error(
+        "Gmail username is required."
+      );
+    }
+
+    const email =
+      `${gmailUsername}@gmail.com`;
+
+    if (emailAlreadyExists(email)) {
+      throw new Error(
+        "This Gmail address is already enrolled."
+      );
+    }
+
+    const studentReference = doc(
+      db,
+      "students",
+      studentId
+    );
+
+    await setDoc(studentReference, {
+      studentId,
+      name,
+      email,
+      loginMethod: "google",
+      active,
+      courses,
+    });
+
+    return "Google student added successfully.";
+  };
+
+  const createPasswordStudent = async ({
+    studentId,
+    name,
+    active,
+    courses,
+  }) => {
+    const password =
+      studentForm.password.trim();
+
+    if (password.length < 6) {
+      throw new Error(
+        "Password must contain at least 6 characters."
+      );
+    }
+
+    const currentAdmin = auth.currentUser;
+
+    if (!currentAdmin) {
+      throw new Error(
+        "Your admin login session expired. Please log in again."
+      );
+    }
+
+    const adminToken =
+      await currentAdmin.getIdToken(true);
+
+    const response = await fetch(
+      `${ADMIN_API_URL}/students/password`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          studentId,
+          name,
+          password,
+          active,
+          courses,
+        }),
+      }
+    );
+
+    let result;
+
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        "The admin API returned an invalid response."
+      );
+    }
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(
+        result.message ||
+          "Unable to create password student."
+      );
+    }
+
+    return (
+      result.message ||
+      "Password student created successfully."
+    );
+  };
+
+  const updateExistingStudent = async ({
+    name,
+    active,
+    courses,
+  }) => {
+    const studentReference = doc(
+      db,
+      "students",
+      editingDocumentId
+    );
+
+    const updatedData = {
+      name,
+      active,
+      courses,
+    };
+
+    if (
+      studentForm.loginMethod === "google"
+    ) {
+      const gmailUsername =
+        studentForm.gmailUsername
+          .trim()
+          .toLowerCase()
+          .replace("@gmail.com", "")
+          .replace(/\s/g, "");
+
+      if (!gmailUsername) {
+        throw new Error(
+          "Gmail username is required."
+        );
+      }
+
+      updatedData.email =
+        `${gmailUsername}@gmail.com`;
+    }
+
+    await updateDoc(
+      studentReference,
+      updatedData
+    );
+
+    return "Student updated successfully.";
+  };
+
   const saveStudent = async (event) => {
     event.preventDefault();
 
     setError("");
     setMessage("");
 
-    const cleanStudentId =
+    const studentId =
       studentForm.studentId.trim();
 
-    const cleanName = studentForm.name.trim();
+    const name =
+      studentForm.name.trim();
 
-    const cleanEmail =
-      studentForm.email.trim().toLowerCase();
+    const active =
+      studentForm.active === true;
 
-    if (!cleanStudentId) {
+    const courses = Array.isArray(
+      studentForm.courses
+    )
+      ? studentForm.courses
+      : [];
+
+    if (!studentId) {
       setError("Student ID is required.");
       return;
     }
 
-    if (!cleanName) {
+    if (!/^[A-Za-z0-9_-]+$/.test(studentId)) {
+      setError(
+        "Student ID can contain only letters, numbers, hyphens and underscores."
+      );
+      return;
+    }
+
+    if (!name) {
       setError("Student name is required.");
       return;
     }
 
-    if (!cleanEmail) {
-      setError("Student Gmail address is required.");
-      return;
-    }
-
     if (
-      !cleanEmail.includes("@") ||
-      !cleanEmail.includes(".")
+      !editingDocumentId &&
+      studentIdAlreadyExists(studentId)
     ) {
       setError(
-        "Enter a valid Gmail address."
+        "This Student ID already exists."
       );
       return;
     }
 
     setSavingId(
-      editingDocumentId || cleanStudentId
+      editingDocumentId || studentId
     );
 
     try {
-      const studentData = {
-        studentId: cleanStudentId,
-        name: cleanName,
-        email: cleanEmail,
-        loginMethod: "google",
-        active: studentForm.active === true,
-        courses: Array.isArray(
-          studentForm.courses
-        )
-          ? studentForm.courses
-          : [],
-      };
+      let successMessage = "";
 
       if (editingDocumentId) {
-        const studentReference = doc(
-          db,
-          "students",
-          editingDocumentId
-        );
-
-        await updateDoc(
-          studentReference,
-          studentData
-        );
-
-        showSuccessMessage(
-          "Student updated successfully."
-        );
-      } else {
-        const existingStudent =
-          students.find((student) => {
-            const savedStudentId = String(
-              student.studentId ||
-                student.documentId
-            );
-
-            return (
-              savedStudentId === cleanStudentId
-            );
+        successMessage =
+          await updateExistingStudent({
+            name,
+            active,
+            courses,
           });
-
-        if (existingStudent) {
-          setError(
-            "This Student ID already exists."
-          );
-          setSavingId("");
-          return;
-        }
-
-        const existingEmail =
-          students.find(
-            (student) =>
-              String(
-                student.email || ""
-              ).toLowerCase() === cleanEmail
-          );
-
-        if (existingEmail) {
-          setError(
-            "This Gmail address is already enrolled."
-          );
-          setSavingId("");
-          return;
-        }
-
-        const studentReference = doc(
-          db,
-          "students",
-          cleanStudentId
-        );
-
-        await setDoc(
-          studentReference,
-          studentData
-        );
-
-        showSuccessMessage(
-          "New Google student added successfully."
-        );
+      } else if (
+        studentForm.loginMethod === "password"
+      ) {
+        successMessage =
+          await createPasswordStudent({
+            studentId,
+            name,
+            active,
+            courses,
+          });
+      } else {
+        successMessage =
+          await createGoogleStudent({
+            studentId,
+            name,
+            active,
+            courses,
+          });
       }
 
       resetStudentForm();
       await loadStudents();
+      showSuccessMessage(successMessage);
     } catch (err) {
-      console.error(
-        "Student save error:",
-        err
-      );
+      console.error("Student save error:", err);
 
-      setError(
-        err.message ||
-          "Unable to save student."
-      );
+      if (
+        err.message === "Failed to fetch"
+      ) {
+        setError(
+          "The password-student server is not running. Start the Cloudflare Worker at http://localhost:8787 and try again."
+        );
+      } else {
+        setError(
+          err.message ||
+            "Unable to save student."
+        );
+      }
     } finally {
       setSavingId("");
     }
@@ -340,15 +519,16 @@ export default function Admin() {
       const newStatus =
         student.active !== true;
 
-      const studentReference = doc(
-        db,
-        "students",
-        student.documentId
+      await updateDoc(
+        doc(
+          db,
+          "students",
+          student.documentId
+        ),
+        {
+          active: newStatus,
+        }
       );
-
-      await updateDoc(studentReference, {
-        active: newStatus,
-      });
 
       setStudents((currentStudents) =>
         currentStudents.map(
@@ -407,15 +587,16 @@ export default function Admin() {
           )
         : [...currentCourses, courseId];
 
-      const studentReference = doc(
-        db,
-        "students",
-        student.documentId
+      await updateDoc(
+        doc(
+          db,
+          "students",
+          student.documentId
+        ),
+        {
+          courses: newCourses,
+        }
       );
-
-      await updateDoc(studentReference, {
-        courses: newCourses,
-      });
 
       setStudents((currentStudents) =>
         currentStudents.map(
@@ -435,7 +616,7 @@ export default function Admin() {
       );
     } catch (err) {
       console.error(
-        "Course access update error:",
+        "Course update error:",
         err
       );
 
@@ -514,7 +695,6 @@ export default function Admin() {
     localStorage.removeItem(
       "adminLoggedIn"
     );
-
     localStorage.removeItem("adminId");
     localStorage.removeItem("adminName");
 
@@ -522,10 +702,10 @@ export default function Admin() {
   };
 
   const filteredStudents = useMemo(() => {
-    const cleanSearch =
+    const search =
       searchText.trim().toLowerCase();
 
-    if (!cleanSearch) {
+    if (!search) {
       return students;
     }
 
@@ -545,11 +725,9 @@ export default function Admin() {
       ).toLowerCase();
 
       return (
-        displayedStudentId.includes(
-          cleanSearch
-        ) ||
-        name.includes(cleanSearch) ||
-        email.includes(cleanSearch)
+        displayedStudentId.includes(search) ||
+        name.includes(search) ||
+        email.includes(search)
       );
     });
   }, [students, searchText]);
@@ -649,12 +827,12 @@ export default function Admin() {
                 <h2 className="text-2xl font-bold text-gray-900">
                   {editingDocumentId
                     ? "Edit Student"
-                    : "Add New Google Student"}
+                    : "Add New Student"}
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  New students will use Google
-                  Sign-In with their Gmail account.
+                  Create Google or Student ID and
+                  password accounts.
                 </p>
               </div>
 
@@ -666,6 +844,40 @@ export default function Admin() {
                 Cancel
               </button>
             </div>
+
+            {!editingDocumentId && (
+              <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-gray-100 p-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectLoginMethod("google")
+                  }
+                  className={`rounded-xl px-4 py-3 font-semibold transition ${
+                    studentForm.loginMethod ===
+                    "google"
+                      ? "bg-white text-green-700 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                >
+                  Google Login
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectLoginMethod("password")
+                  }
+                  className={`rounded-xl px-4 py-3 font-semibold transition ${
+                    studentForm.loginMethod ===
+                    "password"
+                      ? "bg-white text-green-700 shadow-sm"
+                      : "text-gray-500"
+                  }`}
+                >
+                  ID + Password
+                </button>
+              </div>
+            )}
 
             <form
               onSubmit={saveStudent}
@@ -684,14 +896,10 @@ export default function Admin() {
                     id="newStudentId"
                     name="newStudentId"
                     type="text"
-                    value={
-                      studentForm.studentId
-                    }
-                    disabled={
-                      Boolean(
-                        editingDocumentId
-                      )
-                    }
+                    value={studentForm.studentId}
+                    disabled={Boolean(
+                      editingDocumentId
+                    )}
                     onChange={(event) =>
                       setStudentForm(
                         (currentForm) => ({
@@ -702,7 +910,7 @@ export default function Admin() {
                       )
                     }
                     placeholder="Example: 1428"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:bg-gray-100"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:bg-gray-100"
                     required
                   />
                 </div>
@@ -729,38 +937,83 @@ export default function Admin() {
                       )
                     }
                     placeholder="Student full name"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"
                     required
                   />
                 </div>
 
-                <div className="md:col-span-2">
-                  <label
-                    htmlFor="newStudentEmail"
-                    className="mb-2 block font-semibold text-gray-700"
-                  >
-                    Gmail Address
-                  </label>
+                {studentForm.loginMethod ===
+                "google" ? (
+                  <div className="md:col-span-2">
+                    <label
+                      htmlFor="gmailUsername"
+                      className="mb-2 block font-semibold text-gray-700"
+                    >
+                      Gmail Address
+                    </label>
 
-                  <input
-                    id="newStudentEmail"
-                    name="newStudentEmail"
-                    type="email"
-                    value={studentForm.email}
-                    onChange={(event) =>
-                      setStudentForm(
-                        (currentForm) => ({
-                          ...currentForm,
-                          email:
-                            event.target.value,
-                        })
-                      )
-                    }
-                    placeholder="student@gmail.com"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
-                    required
-                  />
-                </div>
+                    <div className="flex overflow-hidden rounded-xl border border-gray-300 focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-200">
+                      <input
+                        id="gmailUsername"
+                        name="gmailUsername"
+                        type="text"
+                        value={
+                          studentForm.gmailUsername
+                        }
+                        onChange={(event) =>
+                          setStudentForm(
+                            (currentForm) => ({
+                              ...currentForm,
+                              gmailUsername:
+                                event.target.value,
+                            })
+                          )
+                        }
+                        placeholder="sanithuudaneth"
+                        className="min-w-0 flex-1 px-4 py-3 outline-none"
+                        required
+                      />
+
+                      <span className="flex items-center border-l border-gray-300 bg-gray-100 px-4 font-medium text-gray-600">
+                        @gmail.com
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="md:col-span-2">
+                    <label
+                      htmlFor="studentPassword"
+                      className="mb-2 block font-semibold text-gray-700"
+                    >
+                      Student Password
+                    </label>
+
+                    <input
+                      id="studentPassword"
+                      name="studentPassword"
+                      type="password"
+                      value={studentForm.password}
+                      onChange={(event) =>
+                        setStudentForm(
+                          (currentForm) => ({
+                            ...currentForm,
+                            password:
+                              event.target.value,
+                          })
+                        )
+                      }
+                      placeholder="Minimum 6 characters"
+                      minLength={6}
+                      required={!editingDocumentId}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    />
+
+                    <p className="mt-2 text-sm text-gray-500">
+                      The student logs in using their
+                      Student ID and this password.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -779,10 +1032,10 @@ export default function Admin() {
                       return (
                         <label
                           key={course.id}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${
                             selected
                               ? "border-green-300 bg-green-50"
-                              : "border-gray-200 bg-white hover:bg-gray-50"
+                              : "border-gray-200 bg-white"
                           }`}
                         >
                           <input
@@ -830,13 +1083,16 @@ export default function Admin() {
               <button
                 type="submit"
                 disabled={savingId !== ""}
-                className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+                className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white hover:bg-green-700 disabled:opacity-60 sm:w-auto sm:px-8"
               >
                 {savingId
                   ? "Saving..."
                   : editingDocumentId
                     ? "Save Changes"
-                    : "Add Student"}
+                    : studentForm.loginMethod ===
+                        "password"
+                      ? "Create Password Student"
+                      : "Create Google Student"}
               </button>
             </form>
           </section>
@@ -860,7 +1116,7 @@ export default function Admin() {
                 <button
                   type="button"
                   onClick={openAddStudentForm}
-                  className="rounded-xl bg-green-600 px-5 py-2.5 font-semibold text-white transition hover:bg-green-700"
+                  className="rounded-xl bg-green-600 px-5 py-2.5 font-semibold text-white hover:bg-green-700"
                 >
                   + Add Student
                 </button>
@@ -868,35 +1124,24 @@ export default function Admin() {
                 <button
                   type="button"
                   onClick={loadStudents}
-                  className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-100"
+                  className="rounded-xl border border-gray-300 px-5 py-2.5 font-semibold text-gray-700 hover:bg-gray-100"
                 >
                   Refresh
                 </button>
               </div>
             </div>
 
-            <div className="mt-5">
-              <label
-                htmlFor="studentSearch"
-                className="sr-only"
-              >
-                Search students
-              </label>
-
-              <input
-                id="studentSearch"
-                name="studentSearch"
-                type="search"
-                value={searchText}
-                onChange={(event) =>
-                  setSearchText(
-                    event.target.value
-                  )
-                }
-                placeholder="Search by Student ID, name or Gmail..."
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
-              />
-            </div>
+            <input
+              id="studentSearch"
+              name="studentSearch"
+              type="search"
+              value={searchText}
+              onChange={(event) =>
+                setSearchText(event.target.value)
+              }
+              placeholder="Search by Student ID, name or Gmail..."
+              className="mt-5 w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"
+            />
           </div>
 
           {loading ? (
@@ -913,176 +1158,150 @@ export default function Admin() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {filteredStudents.map(
-                (student) => {
-                  const displayedStudentId =
-                    student.studentId ||
-                    student.documentId;
+              {filteredStudents.map((student) => {
+                const displayedStudentId =
+                  student.studentId ||
+                  student.documentId;
 
-                  const assignedCourses =
-                    Array.isArray(
-                      student.courses
-                    )
-                      ? student.courses
-                      : [];
+                const assignedCourses =
+                  Array.isArray(student.courses)
+                    ? student.courses
+                    : [];
 
-                  const isSaving =
-                    savingId ===
-                    student.documentId;
+                const isSaving =
+                  savingId === student.documentId;
 
-                  return (
-                    <article
-                      key={student.documentId}
-                      className="p-6"
-                    >
-                      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-xl font-bold text-gray-900">
-                              {student.name ||
-                                "Unnamed Student"}
-                            </h3>
+                return (
+                  <article
+                    key={student.documentId}
+                    className="p-6"
+                  >
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-xl font-bold text-gray-900">
+                            {student.name ||
+                              "Unnamed Student"}
+                          </h3>
 
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                student.active ===
-                                true
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              {student.active ===
-                              true
-                                ? "Active"
-                                : "Disabled"}
-                            </span>
-                          </div>
-
-                          <p className="mt-2 text-sm text-gray-600">
-                            Student ID:{" "}
-                            <span className="font-semibold text-gray-900">
-                              {
-                                displayedStudentId
-                              }
-                            </span>
-                          </p>
-
-                          {student.email && (
-                            <p className="mt-1 break-all text-sm text-gray-600">
-                              Gmail:{" "}
-                              {student.email}
-                            </p>
-                          )}
-
-                          <p className="mt-1 text-sm text-gray-600">
-                            Login method:{" "}
-                            <span className="capitalize">
-                              {student.loginMethod ||
-                                "Not set"}
-                            </span>
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openEditStudentForm(
-                                student
-                              )
-                            }
-                            disabled={isSaving}
-                            className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleStudentStatus(
-                                student
-                              )
-                            }
-                            disabled={isSaving}
-                            className={`rounded-xl px-4 py-2.5 font-semibold transition disabled:opacity-60 ${
-                              student.active ===
-                              true
-                                ? "border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                                : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              student.active
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
                             }`}
                           >
-                            {isSaving
-                              ? "Saving..."
-                              : student.active ===
-                                  true
-                                ? "Disable"
-                                : "Activate"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteStudent(student)
-                            }
-                            disabled={isSaving}
-                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                          >
-                            Delete
-                          </button>
+                            {student.active
+                              ? "Active"
+                              : "Disabled"}
+                          </span>
                         </div>
+
+                        <p className="mt-2 text-sm text-gray-600">
+                          Student ID:{" "}
+                          <strong>
+                            {displayedStudentId}
+                          </strong>
+                        </p>
+
+                        {student.email && (
+                          <p className="mt-1 break-all text-sm text-gray-600">
+                            Gmail: {student.email}
+                          </p>
+                        )}
+
+                        <p className="mt-1 text-sm text-gray-600">
+                          Login method:{" "}
+                          <span className="capitalize">
+                            {student.loginMethod ||
+                              "Not set"}
+                          </span>
+                        </p>
                       </div>
 
-                      <div className="mt-6">
-                        <h4 className="mb-3 font-semibold text-gray-900">
-                          Course Access
-                        </h4>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEditStudentForm(
+                              student
+                            )
+                          }
+                          disabled={isSaving}
+                          className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                        >
+                          Edit
+                        </button>
 
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                          {AVAILABLE_COURSES.map(
-                            (course) => {
-                              const assigned =
-                                assignedCourses.includes(
-                                  course.id
-                                );
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleStudentStatus(
+                              student
+                            )
+                          }
+                          disabled={isSaving}
+                          className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-60"
+                        >
+                          {student.active
+                            ? "Disable"
+                            : "Activate"}
+                        </button>
 
-                              return (
-                                <label
-                                  key={course.id}
-                                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
-                                    assigned
-                                      ? "border-green-300 bg-green-50"
-                                      : "border-gray-200 bg-white hover:bg-gray-50"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={assigned}
-                                    disabled={
-                                      isSaving
-                                    }
-                                    onChange={() =>
-                                      toggleCourseAccess(
-                                        student,
-                                        course.id
-                                      )
-                                    }
-                                    className="h-5 w-5 accent-green-600"
-                                  />
-
-                                  <span className="text-sm font-medium text-gray-800">
-                                    {course.name}
-                                  </span>
-                                </label>
-                              );
-                            }
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteStudent(student)
+                          }
+                          disabled={isSaving}
+                          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
                       </div>
-                    </article>
-                  );
-                }
-              )}
+                    </div>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {AVAILABLE_COURSES.map(
+                        (course) => {
+                          const assigned =
+                            assignedCourses.includes(
+                              course.id
+                            );
+
+                          return (
+                            <label
+                              key={course.id}
+                              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${
+                                assigned
+                                  ? "border-green-300 bg-green-50"
+                                  : "border-gray-200"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={assigned}
+                                disabled={isSaving}
+                                onChange={() =>
+                                  toggleCourseAccess(
+                                    student,
+                                    course.id
+                                  )
+                                }
+                                className="h-5 w-5 accent-green-600"
+                              />
+
+                              <span className="text-sm font-medium">
+                                {course.name}
+                              </span>
+                            </label>
+                          );
+                        }
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
