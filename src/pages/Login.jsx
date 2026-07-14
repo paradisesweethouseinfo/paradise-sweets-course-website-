@@ -17,13 +17,50 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loadingType, setLoadingType] = useState("");
 
-  const saveStudentSession = (studentIdValue, student) => {
-    localStorage.setItem("studentLoggedIn", "true");
-    localStorage.setItem("studentId", studentIdValue);
-    localStorage.setItem("studentName", student.name || "Student");
+  const saveStudentSession = (
+    studentIdValue,
+    student,
+    firebaseUser = null
+  ) => {
+    const realStudentName =
+      student.name ||
+      student.studentName ||
+      student.fullName ||
+      firebaseUser?.displayName ||
+      "Student";
+
+    const studentEmail =
+      student.email ||
+      firebaseUser?.email ||
+      "";
+
+    localStorage.setItem(
+      "studentLoggedIn",
+      "true"
+    );
+
+    localStorage.setItem(
+      "studentId",
+      studentIdValue
+    );
+
+    localStorage.setItem(
+      "studentName",
+      realStudentName
+    );
+
+    localStorage.setItem(
+      "studentEmail",
+      studentEmail
+    );
+
     localStorage.setItem(
       "studentCourses",
-      JSON.stringify(student.courses || [])
+      JSON.stringify(
+        Array.isArray(student.courses)
+          ? student.courses
+          : []
+      )
     );
   };
 
@@ -39,26 +76,37 @@ export default function Login() {
       const loginEmail =
         `${cleanStudentId}@students.paradisesweetsacademy.com`;
 
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        loginEmail,
-        password
+      const userCredential =
+        await signInWithEmailAndPassword(
+          auth,
+          loginEmail,
+          password
+        );
+
+      const studentRef = doc(
+        db,
+        "students",
+        cleanStudentId
       );
 
-      const studentRef = doc(db, "students", cleanStudentId);
-      const studentSnap = await getDoc(studentRef);
+      const studentSnap =
+        await getDoc(studentRef);
 
       if (!studentSnap.exists()) {
         await signOut(auth);
-        setError("Student account was not found.");
+        setError(
+          "Student account was not found."
+        );
         return;
       }
 
       const student = studentSnap.data();
 
-      if (!student.active) {
+      if (student.active !== true) {
         await signOut(auth);
-        setError("Your account has been disabled.");
+        setError(
+          "Your account has been disabled."
+        );
         return;
       }
 
@@ -67,27 +115,49 @@ export default function Login() {
         student.uid !== userCredential.user.uid
       ) {
         await signOut(auth);
-        setError("This account does not match the Student ID.");
+        setError(
+          "This account does not match the Student ID."
+        );
         return;
       }
 
-      saveStudentSession(cleanStudentId, student);
+      saveStudentSession(
+        cleanStudentId,
+        student,
+        userCredential.user
+      );
+
       navigate("/courses");
     } catch (err) {
-      console.error("Password login error:", err);
+      console.error(
+        "Password login error:",
+        err
+      );
 
       if (
         err.code === "auth/invalid-credential" ||
         err.code === "auth/user-not-found" ||
         err.code === "auth/wrong-password"
       ) {
-        setError("Incorrect Student ID or password.");
-      } else if (err.code === "auth/too-many-requests") {
-        setError("Too many attempts. Please try again later.");
-      } else if (err.code === "auth/network-request-failed") {
-        setError("Network error. Check your internet connection.");
+        setError(
+          "Incorrect Student ID or password."
+        );
+      } else if (
+        err.code === "auth/too-many-requests"
+      ) {
+        setError(
+          "Too many attempts. Please try again later."
+        );
+      } else if (
+        err.code === "auth/network-request-failed"
+      ) {
+        setError(
+          "Network error. Check your internet connection."
+        );
       } else {
-        setError(err.message || "Login failed.");
+        setError(
+          err.message || "Login failed."
+        );
       }
     } finally {
       setLoadingType("");
@@ -101,11 +171,22 @@ export default function Login() {
     const provider = new GoogleAuthProvider();
 
     try {
-      const userCredential = await signInWithPopup(auth, provider);
+      const userCredential =
+        await signInWithPopup(
+          auth,
+          provider
+        );
+
       const user = userCredential.user;
 
-      const studentRef = doc(db, "students", user.uid);
-      const studentSnap = await getDoc(studentRef);
+      const studentRef = doc(
+        db,
+        "students",
+        user.uid
+      );
+
+      const studentSnap =
+        await getDoc(studentRef);
 
       if (!studentSnap.exists()) {
         await signOut(auth);
@@ -119,32 +200,62 @@ export default function Login() {
 
       const student = studentSnap.data();
 
-      if (!student.active) {
+      if (student.active !== true) {
         await signOut(auth);
-        setError("Your account has been disabled.");
+        setError(
+          "Your account has been disabled."
+        );
         return;
       }
 
       const savedStudentId =
         student.studentId || user.uid;
 
-      saveStudentSession(savedStudentId, student);
+      saveStudentSession(
+        savedStudentId,
+        student,
+        user
+      );
+
       navigate("/courses");
     } catch (err) {
-      console.error("Google login error:", err);
+      console.error(
+        "Google login error:",
+        err
+      );
 
-      if (err.code === "auth/popup-closed-by-user") {
-        setError("Google Sign-In was cancelled.");
-      } else if (err.code === "auth/popup-blocked") {
-        setError("The browser blocked the Google login window.");
-      } else if (err.code === "auth/account-exists-with-different-credential") {
+      if (
+        err.code ===
+        "auth/popup-closed-by-user"
+      ) {
+        setError(
+          "Google Sign-In was cancelled."
+        );
+      } else if (
+        err.code === "auth/popup-blocked"
+      ) {
+        setError(
+          "The browser blocked the Google login window."
+        );
+      } else if (
+        err.code ===
+        "auth/account-exists-with-different-credential"
+      ) {
         setError(
           "This email is already connected to another login method."
         );
-      } else if (err.code === "auth/network-request-failed") {
-        setError("Network error. Check your internet connection.");
+      } else if (
+        err.code ===
+        "auth/network-request-failed"
+      ) {
+        setError(
+          "Network error. Check your internet connection."
+        );
       } else {
-        setError(err.message || "Google Sign-In failed.");
+        setError(
+          err.message ||
+            "Google Sign-In failed."
+        );
       }
     } finally {
       setLoadingType("");
@@ -152,7 +263,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-50 px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-50 px-4 py-12">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
 
         <div className="mb-5 flex justify-center">
@@ -242,7 +353,11 @@ export default function Login() {
 
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-gray-200" />
-          <span className="text-sm text-gray-400">OR</span>
+
+          <span className="text-sm text-gray-400">
+            OR
+          </span>
+
           <div className="h-px flex-1 bg-gray-200" />
         </div>
 
@@ -262,8 +377,9 @@ export default function Login() {
         </button>
 
         <p className="mt-8 text-center text-sm text-gray-500">
-          Existing students can use Student ID and password.
-          New students should use Google Sign-In.
+          Existing students can use Student ID and
+          password. New students should use Google
+          Sign-In.
         </p>
 
       </div>
