@@ -6,7 +6,16 @@ import {
   signInWithPopup,
   signOut,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 
 export default function Login() {
@@ -24,35 +33,18 @@ export default function Login() {
   ) => {
     const realStudentName =
       student.name ||
-      student.studentName ||
-      student.fullName ||
       firebaseUser?.displayName ||
       "Student";
 
-    const studentEmail =
+    const realStudentEmail =
       student.email ||
       firebaseUser?.email ||
       "";
 
-    localStorage.setItem(
-      "studentLoggedIn",
-      "true"
-    );
-
-    localStorage.setItem(
-      "studentId",
-      studentIdValue
-    );
-
-    localStorage.setItem(
-      "studentName",
-      realStudentName
-    );
-
-    localStorage.setItem(
-      "studentEmail",
-      studentEmail
-    );
+    localStorage.setItem("studentLoggedIn", "true");
+    localStorage.setItem("studentId", studentIdValue);
+    localStorage.setItem("studentName", realStudentName);
+    localStorage.setItem("studentEmail", realStudentEmail);
 
     localStorage.setItem(
       "studentCourses",
@@ -64,8 +56,8 @@ export default function Login() {
     );
   };
 
-  const handlePasswordLogin = async (e) => {
-    e.preventDefault();
+  const handlePasswordLogin = async (event) => {
+    event.preventDefault();
 
     setError("");
     setLoadingType("password");
@@ -73,40 +65,36 @@ export default function Login() {
     const cleanStudentId = studentId.trim();
 
     try {
-      const loginEmail =
+      const internalEmail =
         `${cleanStudentId}@students.paradisesweetsacademy.com`;
 
       const userCredential =
         await signInWithEmailAndPassword(
           auth,
-          loginEmail,
+          internalEmail,
           password
         );
 
-      const studentRef = doc(
+      const studentReference = doc(
         db,
         "students",
         cleanStudentId
       );
 
-      const studentSnap =
-        await getDoc(studentRef);
+      const studentSnapshot =
+        await getDoc(studentReference);
 
-      if (!studentSnap.exists()) {
+      if (!studentSnapshot.exists()) {
         await signOut(auth);
-        setError(
-          "Student account was not found."
-        );
+        setError("Student account was not found.");
         return;
       }
 
-      const student = studentSnap.data();
+      const student = studentSnapshot.data();
 
       if (student.active !== true) {
         await signOut(auth);
-        setError(
-          "Your account has been disabled."
-        );
+        setError("Your account has been disabled.");
         return;
       }
 
@@ -115,9 +103,11 @@ export default function Login() {
         student.uid !== userCredential.user.uid
       ) {
         await signOut(auth);
+
         setError(
           "This account does not match the Student ID."
         );
+
         return;
       }
 
@@ -129,10 +119,7 @@ export default function Login() {
 
       navigate("/courses");
     } catch (err) {
-      console.error(
-        "Password login error:",
-        err
-      );
+      console.error("Password login error:", err);
 
       if (
         err.code === "auth/invalid-credential" ||
@@ -170,63 +157,121 @@ export default function Login() {
 
     const provider = new GoogleAuthProvider();
 
+    provider.setCustomParameters({
+      prompt: "select_account",
+    });
+
     try {
       const userCredential =
-        await signInWithPopup(
-          auth,
-          provider
-        );
+        await signInWithPopup(auth, provider);
 
       const user = userCredential.user;
 
-      const studentRef = doc(
-        db,
-        "students",
-        user.uid
-      );
+      const googleEmail =
+        String(user.email || "")
+          .trim()
+          .toLowerCase();
 
-      const studentSnap =
-        await getDoc(studentRef);
-
-      if (!studentSnap.exists()) {
+      if (!googleEmail) {
         await signOut(auth);
 
         setError(
-          "Your Google account is not enrolled yet. Please contact Paradise Sweets Academy."
+          "Google did not provide an email address."
         );
 
         return;
       }
 
-      const student = studentSnap.data();
+      const studentQuery = query(
+        collection(db, "students"),
+        where("email", "==", googleEmail),
+        limit(1)
+      );
+
+      const studentResults =
+        await getDocs(studentQuery);
+
+      if (studentResults.empty) {
+        await signOut(auth);
+
+        setError(
+          `The Gmail account ${googleEmail} is not enrolled. Check that the same Gmail address was added in the Admin Panel.`
+        );
+
+        return;
+      }
+
+      const studentDocument =
+        studentResults.docs[0];
+
+      const student =
+        studentDocument.data();
+
+      if (student.loginMethod !== "google") {
+        await signOut(auth);
+
+        setError(
+          "This student account is not configured for Google Login."
+        );
+
+        return;
+      }
 
       if (student.active !== true) {
         await signOut(auth);
+
         setError(
-          "Your account has been disabled."
+          "Your student account has been disabled."
         );
+
         return;
       }
 
+      if (
+        student.uid &&
+        student.uid !== user.uid
+      ) {
+        await signOut(auth);
+
+        setError(
+          "This Gmail account is already connected to another Firebase user."
+        );
+
+        return;
+      }
+
+      if (!student.uid) {
+        await updateDoc(
+          doc(
+            db,
+            "students",
+            studentDocument.id
+          ),
+          {
+            uid: user.uid,
+          }
+        );
+      }
+
       const savedStudentId =
-        student.studentId || user.uid;
+        student.studentId ||
+        studentDocument.id;
 
       saveStudentSession(
         savedStudentId,
-        student,
+        {
+          ...student,
+          uid: user.uid,
+        },
         user
       );
 
       navigate("/courses");
     } catch (err) {
-      console.error(
-        "Google login error:",
-        err
-      );
+      console.error("Google login error:", err);
 
       if (
-        err.code ===
-        "auth/popup-closed-by-user"
+        err.code === "auth/popup-closed-by-user"
       ) {
         setError(
           "Google Sign-In was cancelled."
@@ -238,23 +283,26 @@ export default function Login() {
           "The browser blocked the Google login window."
         );
       } else if (
-        err.code ===
-        "auth/account-exists-with-different-credential"
+        err.code === "auth/unauthorized-domain"
       ) {
         setError(
-          "This email is already connected to another login method."
+          "This website domain is not authorized in Firebase Authentication."
         );
       } else if (
-        err.code ===
-        "auth/network-request-failed"
+        err.code === "auth/network-request-failed"
       ) {
         setError(
           "Network error. Check your internet connection."
         );
+      } else if (
+        err.code === "permission-denied"
+      ) {
+        setError(
+          "Firestore permission denied. Replace the Firestore Rules with the rules provided below."
+        );
       } else {
         setError(
-          err.message ||
-            "Google Sign-In failed."
+          err.message || "Google Sign-In failed."
         );
       }
     } finally {
@@ -283,7 +331,7 @@ export default function Login() {
         </p>
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700">
+          <div className="mb-4 break-words rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700">
             {error}
           </div>
         )}
@@ -307,8 +355,8 @@ export default function Login() {
               autoComplete="username"
               placeholder="Enter Student ID"
               value={studentId}
-              onChange={(e) => {
-                setStudentId(e.target.value);
+              onChange={(event) => {
+                setStudentId(event.target.value);
                 setError("");
               }}
               className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
@@ -331,8 +379,8 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="Enter Password"
               value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
+              onChange={(event) => {
+                setPassword(event.target.value);
                 setError("");
               }}
               className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
@@ -378,10 +426,9 @@ export default function Login() {
 
         <p className="mt-8 text-center text-sm text-gray-500">
           Existing students can use Student ID and
-          password. New students should use Google
+          password. New students can use Google
           Sign-In.
         </p>
-
       </div>
     </div>
   );
