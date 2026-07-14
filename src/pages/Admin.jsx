@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
@@ -28,6 +30,14 @@ const AVAILABLE_COURSES = [
   },
 ];
 
+const EMPTY_FORM = {
+  studentId: "",
+  name: "",
+  email: "",
+  active: true,
+  courses: [],
+};
+
 export default function Admin() {
   const navigate = useNavigate();
 
@@ -37,41 +47,68 @@ export default function Admin() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [showStudentForm, setShowStudentForm] =
+    useState(false);
+
+  const [editingDocumentId, setEditingDocumentId] =
+    useState("");
+
+  const [studentForm, setStudentForm] =
+    useState(EMPTY_FORM);
+
+  const [searchText, setSearchText] = useState("");
+
   const loadStudents = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const studentsRef = collection(db, "students");
-      const snapshot = await getDocs(studentsRef);
+      const studentsReference = collection(
+        db,
+        "students"
+      );
 
-      const studentList = snapshot.docs.map((studentDocument) => ({
-        documentId: studentDocument.id,
-        ...studentDocument.data(),
-      }));
+      const snapshot = await getDocs(
+        studentsReference
+      );
 
-      studentList.sort((a, b) => {
+      const studentList = snapshot.docs.map(
+        (studentDocument) => ({
+          documentId: studentDocument.id,
+          ...studentDocument.data(),
+        })
+      );
+
+      studentList.sort((firstStudent, secondStudent) => {
         const firstId = String(
-          a.studentId || a.documentId
+          firstStudent.studentId ||
+            firstStudent.documentId
         );
 
         const secondId = String(
-          b.studentId || b.documentId
+          secondStudent.studentId ||
+            secondStudent.documentId
         );
 
         return firstId.localeCompare(
           secondId,
           undefined,
-          { numeric: true }
+          {
+            numeric: true,
+          }
         );
       });
 
       setStudents(studentList);
     } catch (err) {
-      console.error("Student loading error:", err);
+      console.error(
+        "Student loading error:",
+        err
+      );
 
       setError(
-        err.message || "Unable to load students."
+        err.message ||
+          "Unable to load students."
       );
     } finally {
       setLoading(false);
@@ -91,32 +128,238 @@ export default function Admin() {
     }, 3000);
   };
 
+  const resetStudentForm = () => {
+    setStudentForm(EMPTY_FORM);
+    setEditingDocumentId("");
+    setShowStudentForm(false);
+  };
+
+  const openAddStudentForm = () => {
+    setError("");
+    setEditingDocumentId("");
+    setStudentForm(EMPTY_FORM);
+    setShowStudentForm(true);
+  };
+
+  const openEditStudentForm = (student) => {
+    setError("");
+
+    setEditingDocumentId(student.documentId);
+
+    setStudentForm({
+      studentId:
+        student.studentId ||
+        student.documentId ||
+        "",
+      name: student.name || "",
+      email: student.email || "",
+      active: student.active === true,
+      courses: Array.isArray(student.courses)
+        ? student.courses
+        : [],
+    });
+
+    setShowStudentForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  const handleFormCourseChange = (courseId) => {
+    setStudentForm((currentForm) => {
+      const currentCourses = Array.isArray(
+        currentForm.courses
+      )
+        ? currentForm.courses
+        : [];
+
+      const alreadySelected =
+        currentCourses.includes(courseId);
+
+      return {
+        ...currentForm,
+        courses: alreadySelected
+          ? currentCourses.filter(
+              (currentCourseId) =>
+                currentCourseId !== courseId
+            )
+          : [...currentCourses, courseId],
+      };
+    });
+  };
+
+  const saveStudent = async (event) => {
+    event.preventDefault();
+
+    setError("");
+    setMessage("");
+
+    const cleanStudentId =
+      studentForm.studentId.trim();
+
+    const cleanName = studentForm.name.trim();
+
+    const cleanEmail =
+      studentForm.email.trim().toLowerCase();
+
+    if (!cleanStudentId) {
+      setError("Student ID is required.");
+      return;
+    }
+
+    if (!cleanName) {
+      setError("Student name is required.");
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError("Student Gmail address is required.");
+      return;
+    }
+
+    if (
+      !cleanEmail.includes("@") ||
+      !cleanEmail.includes(".")
+    ) {
+      setError(
+        "Enter a valid Gmail address."
+      );
+      return;
+    }
+
+    setSavingId(
+      editingDocumentId || cleanStudentId
+    );
+
+    try {
+      const studentData = {
+        studentId: cleanStudentId,
+        name: cleanName,
+        email: cleanEmail,
+        loginMethod: "google",
+        active: studentForm.active === true,
+        courses: Array.isArray(
+          studentForm.courses
+        )
+          ? studentForm.courses
+          : [],
+      };
+
+      if (editingDocumentId) {
+        const studentReference = doc(
+          db,
+          "students",
+          editingDocumentId
+        );
+
+        await updateDoc(
+          studentReference,
+          studentData
+        );
+
+        showSuccessMessage(
+          "Student updated successfully."
+        );
+      } else {
+        const existingStudent =
+          students.find((student) => {
+            const savedStudentId = String(
+              student.studentId ||
+                student.documentId
+            );
+
+            return (
+              savedStudentId === cleanStudentId
+            );
+          });
+
+        if (existingStudent) {
+          setError(
+            "This Student ID already exists."
+          );
+          setSavingId("");
+          return;
+        }
+
+        const existingEmail =
+          students.find(
+            (student) =>
+              String(
+                student.email || ""
+              ).toLowerCase() === cleanEmail
+          );
+
+        if (existingEmail) {
+          setError(
+            "This Gmail address is already enrolled."
+          );
+          setSavingId("");
+          return;
+        }
+
+        const studentReference = doc(
+          db,
+          "students",
+          cleanStudentId
+        );
+
+        await setDoc(
+          studentReference,
+          studentData
+        );
+
+        showSuccessMessage(
+          "New Google student added successfully."
+        );
+      }
+
+      resetStudentForm();
+      await loadStudents();
+    } catch (err) {
+      console.error(
+        "Student save error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Unable to save student."
+      );
+    } finally {
+      setSavingId("");
+    }
+  };
+
   const toggleStudentStatus = async (student) => {
     setSavingId(student.documentId);
     setError("");
 
     try {
-      const newStatus = student.active !== true;
+      const newStatus =
+        student.active !== true;
 
-      const studentRef = doc(
+      const studentReference = doc(
         db,
         "students",
         student.documentId
       );
 
-      await updateDoc(studentRef, {
+      await updateDoc(studentReference, {
         active: newStatus,
       });
 
       setStudents((currentStudents) =>
-        currentStudents.map((currentStudent) =>
-          currentStudent.documentId ===
-          student.documentId
-            ? {
-                ...currentStudent,
-                active: newStatus,
-              }
-            : currentStudent
+        currentStudents.map(
+          (currentStudent) =>
+            currentStudent.documentId ===
+            student.documentId
+              ? {
+                  ...currentStudent,
+                  active: newStatus,
+                }
+              : currentStudent
         )
       );
 
@@ -164,25 +407,26 @@ export default function Admin() {
           )
         : [...currentCourses, courseId];
 
-      const studentRef = doc(
+      const studentReference = doc(
         db,
         "students",
         student.documentId
       );
 
-      await updateDoc(studentRef, {
+      await updateDoc(studentReference, {
         courses: newCourses,
       });
 
       setStudents((currentStudents) =>
-        currentStudents.map((currentStudent) =>
-          currentStudent.documentId ===
-          student.documentId
-            ? {
-                ...currentStudent,
-                courses: newCourses,
-              }
-            : currentStudent
+        currentStudents.map(
+          (currentStudent) =>
+            currentStudent.documentId ===
+            student.documentId
+              ? {
+                  ...currentStudent,
+                  courses: newCourses,
+                }
+              : currentStudent
         )
       );
 
@@ -204,19 +448,111 @@ export default function Admin() {
     }
   };
 
+  const deleteStudent = async (student) => {
+    const displayedStudentId =
+      student.studentId ||
+      student.documentId;
+
+    const confirmed = window.confirm(
+      `Delete student ${displayedStudentId} - ${
+        student.name || "Unnamed Student"
+      }?\n\nThis removes the Firestore student record.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSavingId(student.documentId);
+    setError("");
+
+    try {
+      await deleteDoc(
+        doc(
+          db,
+          "students",
+          student.documentId
+        )
+      );
+
+      setStudents((currentStudents) =>
+        currentStudents.filter(
+          (currentStudent) =>
+            currentStudent.documentId !==
+            student.documentId
+        )
+      );
+
+      showSuccessMessage(
+        "Student record deleted successfully."
+      );
+    } catch (err) {
+      console.error(
+        "Student deletion error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Unable to delete student."
+      );
+    } finally {
+      setSavingId("");
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
     } catch (err) {
-      console.error("Admin logout error:", err);
+      console.error(
+        "Admin logout error:",
+        err
+      );
     }
 
-    localStorage.removeItem("adminLoggedIn");
+    localStorage.removeItem(
+      "adminLoggedIn"
+    );
+
     localStorage.removeItem("adminId");
     localStorage.removeItem("adminName");
 
     navigate("/admin");
   };
+
+  const filteredStudents = useMemo(() => {
+    const cleanSearch =
+      searchText.trim().toLowerCase();
+
+    if (!cleanSearch) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      const displayedStudentId = String(
+        student.studentId ||
+          student.documentId ||
+          ""
+      ).toLowerCase();
+
+      const name = String(
+        student.name || ""
+      ).toLowerCase();
+
+      const email = String(
+        student.email || ""
+      ).toLowerCase();
+
+      return (
+        displayedStudentId.includes(
+          cleanSearch
+        ) ||
+        name.includes(cleanSearch) ||
+        email.includes(cleanSearch)
+      );
+    });
+  }, [students, searchText]);
 
   const activeStudents = students.filter(
     (student) => student.active === true
@@ -251,6 +587,13 @@ export default function Admin() {
               <h1 className="text-2xl font-bold text-gray-900">
                 Admin Dashboard
               </h1>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Logged in as{" "}
+                {localStorage.getItem(
+                  "adminName"
+                ) || "Administrator"}
+              </p>
             </div>
           </div>
 
@@ -299,26 +642,261 @@ export default function Admin() {
           </div>
         )}
 
-        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Student Manager
-              </h2>
+        {showStudentForm && (
+          <section className="mb-8 rounded-3xl border border-green-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingDocumentId
+                    ? "Edit Student"
+                    : "Add New Google Student"}
+                </h2>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Activate students and control course
-                access.
-              </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  New students will use Google
+                  Sign-In with their Gmail account.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetStudentForm}
+                className="rounded-xl border border-gray-300 px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-100"
+              >
+                Cancel
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={loadStudents}
-              className="rounded-xl bg-green-600 px-5 py-2.5 font-semibold text-white transition hover:bg-green-700"
+            <form
+              onSubmit={saveStudent}
+              className="space-y-6"
             >
-              Refresh Students
-            </button>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="newStudentId"
+                    className="mb-2 block font-semibold text-gray-700"
+                  >
+                    Student ID
+                  </label>
+
+                  <input
+                    id="newStudentId"
+                    name="newStudentId"
+                    type="text"
+                    value={
+                      studentForm.studentId
+                    }
+                    disabled={
+                      Boolean(
+                        editingDocumentId
+                      )
+                    }
+                    onChange={(event) =>
+                      setStudentForm(
+                        (currentForm) => ({
+                          ...currentForm,
+                          studentId:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Example: 1428"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:bg-gray-100"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="newStudentName"
+                    className="mb-2 block font-semibold text-gray-700"
+                  >
+                    Student Name
+                  </label>
+
+                  <input
+                    id="newStudentName"
+                    name="newStudentName"
+                    type="text"
+                    value={studentForm.name}
+                    onChange={(event) =>
+                      setStudentForm(
+                        (currentForm) => ({
+                          ...currentForm,
+                          name: event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Student full name"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    required
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor="newStudentEmail"
+                    className="mb-2 block font-semibold text-gray-700"
+                  >
+                    Gmail Address
+                  </label>
+
+                  <input
+                    id="newStudentEmail"
+                    name="newStudentEmail"
+                    type="email"
+                    value={studentForm.email}
+                    onChange={(event) =>
+                      setStudentForm(
+                        (currentForm) => ({
+                          ...currentForm,
+                          email:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder="student@gmail.com"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold text-gray-900">
+                  Purchased Courses
+                </h3>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {AVAILABLE_COURSES.map(
+                    (course) => {
+                      const selected =
+                        studentForm.courses.includes(
+                          course.id
+                        );
+
+                      return (
+                        <label
+                          key={course.id}
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
+                            selected
+                              ? "border-green-300 bg-green-50"
+                              : "border-gray-200 bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              handleFormCourseChange(
+                                course.id
+                              )
+                            }
+                            className="h-5 w-5 accent-green-600"
+                          />
+
+                          <span className="text-sm font-medium text-gray-800">
+                            {course.name}
+                          </span>
+                        </label>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 p-4">
+                <input
+                  type="checkbox"
+                  checked={studentForm.active}
+                  onChange={(event) =>
+                    setStudentForm(
+                      (currentForm) => ({
+                        ...currentForm,
+                        active:
+                          event.target.checked,
+                      })
+                    )
+                  }
+                  className="h-5 w-5 accent-green-600"
+                />
+
+                <span className="font-medium text-gray-800">
+                  Student account is active
+                </span>
+              </label>
+
+              <button
+                type="submit"
+                disabled={savingId !== ""}
+                className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+              >
+                {savingId
+                  ? "Saving..."
+                  : editingDocumentId
+                    ? "Save Changes"
+                    : "Add Student"}
+              </button>
+            </form>
+          </section>
+        )}
+
+        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-200 px-6 py-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Student Manager
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Add, edit, delete and control
+                  student access.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={openAddStudentForm}
+                  className="rounded-xl bg-green-600 px-5 py-2.5 font-semibold text-white transition hover:bg-green-700"
+                >
+                  + Add Student
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadStudents}
+                  className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-100"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <label
+                htmlFor="studentSearch"
+                className="sr-only"
+              >
+                Search students
+              </label>
+
+              <input
+                id="studentSearch"
+                name="studentSearch"
+                type="search"
+                value={searchText}
+                onChange={(event) =>
+                  setSearchText(
+                    event.target.value
+                  )
+                }
+                placeholder="Search by Student ID, name or Gmail..."
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -329,140 +907,182 @@ export default function Admin() {
                 Loading students...
               </p>
             </div>
-          ) : students.length === 0 ? (
+          ) : filteredStudents.length === 0 ? (
             <div className="py-20 text-center text-gray-500">
-              No student documents were found.
+              No matching students were found.
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {students.map((student) => {
-                const displayedStudentId =
-                  student.studentId ||
-                  student.documentId;
+              {filteredStudents.map(
+                (student) => {
+                  const displayedStudentId =
+                    student.studentId ||
+                    student.documentId;
 
-                const assignedCourses =
-                  Array.isArray(student.courses)
-                    ? student.courses
-                    : [];
+                  const assignedCourses =
+                    Array.isArray(
+                      student.courses
+                    )
+                      ? student.courses
+                      : [];
 
-                const isSaving =
-                  savingId === student.documentId;
+                  const isSaving =
+                    savingId ===
+                    student.documentId;
 
-                return (
-                  <article
-                    key={student.documentId}
-                    className="p-6"
-                  >
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-xl font-bold text-gray-900">
-                            {student.name ||
-                              "Unnamed Student"}
-                          </h3>
+                  return (
+                    <article
+                      key={student.documentId}
+                      className="p-6"
+                    >
+                      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-xl font-bold text-gray-900">
+                              {student.name ||
+                                "Unnamed Student"}
+                            </h3>
 
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              student.active === true
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {student.active === true
-                              ? "Active"
-                              : "Disabled"}
-                          </span>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                student.active ===
+                                true
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {student.active ===
+                              true
+                                ? "Active"
+                                : "Disabled"}
+                            </span>
+                          </div>
+
+                          <p className="mt-2 text-sm text-gray-600">
+                            Student ID:{" "}
+                            <span className="font-semibold text-gray-900">
+                              {
+                                displayedStudentId
+                              }
+                            </span>
+                          </p>
+
+                          {student.email && (
+                            <p className="mt-1 break-all text-sm text-gray-600">
+                              Gmail:{" "}
+                              {student.email}
+                            </p>
+                          )}
+
+                          <p className="mt-1 text-sm text-gray-600">
+                            Login method:{" "}
+                            <span className="capitalize">
+                              {student.loginMethod ||
+                                "Not set"}
+                            </span>
+                          </p>
                         </div>
 
-                        <p className="mt-2 text-sm text-gray-600">
-                          Student ID:{" "}
-                          <span className="font-semibold text-gray-900">
-                            {displayedStudentId}
-                          </span>
-                        </p>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEditStudentForm(
+                                student
+                              )
+                            }
+                            disabled={isSaving}
+                            className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                          >
+                            Edit
+                          </button>
 
-                        {student.email && (
-                          <p className="mt-1 break-all text-sm text-gray-600">
-                            Gmail: {student.email}
-                          </p>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStudentStatus(
+                                student
+                              )
+                            }
+                            disabled={isSaving}
+                            className={`rounded-xl px-4 py-2.5 font-semibold transition disabled:opacity-60 ${
+                              student.active ===
+                              true
+                                ? "border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                                : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                            }`}
+                          >
+                            {isSaving
+                              ? "Saving..."
+                              : student.active ===
+                                  true
+                                ? "Disable"
+                                : "Activate"}
+                          </button>
 
-                        <p className="mt-1 text-sm text-gray-600">
-                          Login method:{" "}
-                          <span className="capitalize">
-                            {student.loginMethod ||
-                              "Not set"}
-                          </span>
-                        </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteStudent(student)
+                            }
+                            disabled={isSaving}
+                            className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toggleStudentStatus(student)
-                        }
-                        disabled={isSaving}
-                        className={`rounded-xl px-5 py-2.5 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                          student.active === true
-                            ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                            : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                        }`}
-                      >
-                        {isSaving
-                          ? "Saving..."
-                          : student.active === true
-                            ? "Disable Student"
-                            : "Activate Student"}
-                      </button>
-                    </div>
+                      <div className="mt-6">
+                        <h4 className="mb-3 font-semibold text-gray-900">
+                          Course Access
+                        </h4>
 
-                    <div className="mt-6">
-                      <h4 className="mb-3 font-semibold text-gray-900">
-                        Course Access
-                      </h4>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          {AVAILABLE_COURSES.map(
+                            (course) => {
+                              const assigned =
+                                assignedCourses.includes(
+                                  course.id
+                                );
 
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {AVAILABLE_COURSES.map(
-                          (course) => {
-                            const assigned =
-                              assignedCourses.includes(
-                                course.id
+                              return (
+                                <label
+                                  key={course.id}
+                                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
+                                    assigned
+                                      ? "border-green-300 bg-green-50"
+                                      : "border-gray-200 bg-white hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={assigned}
+                                    disabled={
+                                      isSaving
+                                    }
+                                    onChange={() =>
+                                      toggleCourseAccess(
+                                        student,
+                                        course.id
+                                      )
+                                    }
+                                    className="h-5 w-5 accent-green-600"
+                                  />
+
+                                  <span className="text-sm font-medium text-gray-800">
+                                    {course.name}
+                                  </span>
+                                </label>
                               );
-
-                            return (
-                              <label
-                                key={course.id}
-                                className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
-                                  assigned
-                                    ? "border-green-300 bg-green-50"
-                                    : "border-gray-200 bg-white hover:bg-gray-50"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={assigned}
-                                  disabled={isSaving}
-                                  onChange={() =>
-                                    toggleCourseAccess(
-                                      student,
-                                      course.id
-                                    )
-                                  }
-                                  className="h-5 w-5 accent-green-600"
-                                />
-
-                                <span className="text-sm font-medium text-gray-800">
-                                  {course.name}
-                                </span>
-                              </label>
-                            );
-                          }
-                        )}
+                            }
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
+                    </article>
+                  );
+                }
+              )}
             </div>
           )}
         </section>
