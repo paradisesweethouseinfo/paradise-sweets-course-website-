@@ -10,7 +10,7 @@ import {
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase/firebase";
 
-const ADMIN_API_URL = "http://localhost:8787";
+const ADMIN_API_URL = "http://localhost:8788";
 
 const AVAILABLE_COURSES = [
   {
