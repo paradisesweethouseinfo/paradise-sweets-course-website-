@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 
@@ -12,30 +15,53 @@ export default function AdminProtectedRoute({ children }) {
     const unsubscribe = onAuthStateChanged(
       auth,
       async (user) => {
-        if (!user) {
+        const savedAdminId =
+          localStorage.getItem("adminId");
+
+        if (!user || !savedAdminId) {
           localStorage.removeItem("adminLoggedIn");
+          localStorage.removeItem("adminId");
           localStorage.removeItem("adminName");
+
           setAllowed(false);
           setChecking(false);
           return;
         }
 
         try {
-          const adminRef = doc(db, "admins", user.uid);
+          const adminRef = doc(
+            db,
+            "admins",
+            savedAdminId
+          );
+
           const adminSnap = await getDoc(adminRef);
 
           if (
             adminSnap.exists() &&
-            adminSnap.data().active === true
+            adminSnap.data().active === true &&
+            adminSnap.data().uid === user.uid
           ) {
             setAllowed(true);
           } else {
+            await signOut(auth);
+
             localStorage.removeItem("adminLoggedIn");
+            localStorage.removeItem("adminId");
             localStorage.removeItem("adminName");
+
             setAllowed(false);
           }
         } catch (err) {
-          console.error("Admin verification error:", err);
+          console.error(
+            "Admin verification error:",
+            err
+          );
+
+          localStorage.removeItem("adminLoggedIn");
+          localStorage.removeItem("adminId");
+          localStorage.removeItem("adminName");
+
           setAllowed(false);
         } finally {
           setChecking(false);

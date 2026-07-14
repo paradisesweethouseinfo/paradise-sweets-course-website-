@@ -24,30 +24,27 @@ export default function AdminLogin() {
     const cleanAdminId = adminId.trim().toLowerCase();
 
     try {
-      if (cleanAdminId !== "admin") {
-        setError("Incorrect Admin ID or password.");
-        return;
-      }
+      const adminEmail =
+        `${cleanAdminId}@paradisesweetsacademy.com`;
 
-      const adminEmail = "admin@paradisesweetsacademy.com";
-
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        adminEmail,
-        password
-      );
+      const userCredential =
+        await signInWithEmailAndPassword(
+          auth,
+          adminEmail,
+          password
+        );
 
       const adminRef = doc(
         db,
         "admins",
-        userCredential.user.uid
+        cleanAdminId
       );
 
       const adminSnap = await getDoc(adminRef);
 
       if (!adminSnap.exists()) {
         await signOut(auth);
-        setError("This account does not have administrator access.");
+        setError("Admin ID was not found.");
         return;
       }
 
@@ -55,11 +52,28 @@ export default function AdminLogin() {
 
       if (adminData.active !== true) {
         await signOut(auth);
-        setError("This administrator account has been disabled.");
+        setError("This administrator account is disabled.");
         return;
       }
 
-      localStorage.setItem("adminLoggedIn", "true");
+      if (adminData.uid !== userCredential.user.uid) {
+        await signOut(auth);
+        setError(
+          "This Authentication account does not match the Admin ID."
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "adminLoggedIn",
+        "true"
+      );
+
+      localStorage.setItem(
+        "adminId",
+        cleanAdminId
+      );
+
       localStorage.setItem(
         "adminName",
         adminData.name || "Administrator"
@@ -75,12 +89,28 @@ export default function AdminLogin() {
         err.code === "auth/user-not-found"
       ) {
         setError("Incorrect Admin ID or password.");
-      } else if (err.code === "auth/too-many-requests") {
-        setError("Too many login attempts. Try again later.");
-      } else if (err.code === "auth/network-request-failed") {
-        setError("Network error. Check your internet connection.");
+      } else if (
+        err.code === "auth/too-many-requests"
+      ) {
+        setError(
+          "Too many login attempts. Please try again later."
+        );
+      } else if (
+        err.code === "auth/network-request-failed"
+      ) {
+        setError(
+          "Network error. Check your internet connection."
+        );
+      } else if (
+        err.code === "permission-denied"
+      ) {
+        setError(
+          "Firestore permission denied. Check your Firestore rules."
+        );
       } else {
-        setError(err.message || "Admin login failed.");
+        setError(
+          err.message || "Admin login failed."
+        );
       }
     } finally {
       setLoading(false);
@@ -90,6 +120,7 @@ export default function AdminLogin() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-100 via-white to-green-50 px-4 py-16">
       <div className="mx-auto w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+
         <div className="mb-5 flex justify-center">
           <img
             src="/logo.png"
@@ -169,9 +200,15 @@ export default function AdminLogin() {
             disabled={loading}
             className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Verifying..." : "Login to Admin Panel"}
+            {loading
+              ? "Verifying..."
+              : "Login to Admin Panel"}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-gray-400">
+          Authorized administrators only
+        </p>
       </div>
     </main>
   );

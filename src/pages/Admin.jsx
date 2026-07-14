@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
+  doc,
   getDocs,
   updateDoc,
-  doc,
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../firebase/firebase";
@@ -45,23 +45,34 @@ export default function Admin() {
       const studentsRef = collection(db, "students");
       const snapshot = await getDocs(studentsRef);
 
-      const studentList = snapshot.docs.map((studentDoc) => ({
-        documentId: studentDoc.id,
-        ...studentDoc.data(),
+      const studentList = snapshot.docs.map((studentDocument) => ({
+        documentId: studentDocument.id,
+        ...studentDocument.data(),
       }));
 
-      studentList.sort((a, b) =>
-        String(a.studentId || a.documentId).localeCompare(
-          String(b.studentId || b.documentId),
+      studentList.sort((a, b) => {
+        const firstId = String(
+          a.studentId || a.documentId
+        );
+
+        const secondId = String(
+          b.studentId || b.documentId
+        );
+
+        return firstId.localeCompare(
+          secondId,
           undefined,
           { numeric: true }
-        )
-      );
+        );
+      });
 
       setStudents(studentList);
     } catch (err) {
       console.error("Student loading error:", err);
-      setError(err.message || "Unable to load students.");
+
+      setError(
+        err.message || "Unable to load students."
+      );
     } finally {
       setLoading(false);
     }
@@ -71,7 +82,7 @@ export default function Admin() {
     loadStudents();
   }, []);
 
-  const showSuccess = (text) => {
+  const showSuccessMessage = (text) => {
     setMessage(text);
     setError("");
 
@@ -87,16 +98,20 @@ export default function Admin() {
     try {
       const newStatus = student.active !== true;
 
-      await updateDoc(
-        doc(db, "students", student.documentId),
-        {
-          active: newStatus,
-        }
+      const studentRef = doc(
+        db,
+        "students",
+        student.documentId
       );
+
+      await updateDoc(studentRef, {
+        active: newStatus,
+      });
 
       setStudents((currentStudents) =>
         currentStudents.map((currentStudent) =>
-          currentStudent.documentId === student.documentId
+          currentStudent.documentId ===
+          student.documentId
             ? {
                 ...currentStudent,
                 active: newStatus,
@@ -105,44 +120,64 @@ export default function Admin() {
         )
       );
 
-      showSuccess(
+      showSuccessMessage(
         newStatus
           ? "Student account activated."
           : "Student account disabled."
       );
     } catch (err) {
-      console.error("Status update error:", err);
-      setError(err.message || "Unable to update student.");
+      console.error(
+        "Student status update error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Unable to update student status."
+      );
     } finally {
       setSavingId("");
     }
   };
 
-  const toggleCourse = async (student, courseId) => {
+  const toggleCourseAccess = async (
+    student,
+    courseId
+  ) => {
     setSavingId(student.documentId);
     setError("");
 
     try {
-      const currentCourses = Array.isArray(student.courses)
+      const currentCourses = Array.isArray(
+        student.courses
+      )
         ? student.courses
         : [];
 
-      const alreadyAssigned = currentCourses.includes(courseId);
+      const alreadyAssigned =
+        currentCourses.includes(courseId);
 
       const newCourses = alreadyAssigned
-        ? currentCourses.filter((id) => id !== courseId)
+        ? currentCourses.filter(
+            (currentCourseId) =>
+              currentCourseId !== courseId
+          )
         : [...currentCourses, courseId];
 
-      await updateDoc(
-        doc(db, "students", student.documentId),
-        {
-          courses: newCourses,
-        }
+      const studentRef = doc(
+        db,
+        "students",
+        student.documentId
       );
+
+      await updateDoc(studentRef, {
+        courses: newCourses,
+      });
 
       setStudents((currentStudents) =>
         currentStudents.map((currentStudent) =>
-          currentStudent.documentId === student.documentId
+          currentStudent.documentId ===
+          student.documentId
             ? {
                 ...currentStudent,
                 courses: newCourses,
@@ -151,10 +186,19 @@ export default function Admin() {
         )
       );
 
-      showSuccess("Course access updated.");
+      showSuccessMessage(
+        "Course access updated successfully."
+      );
     } catch (err) {
-      console.error("Course update error:", err);
-      setError(err.message || "Unable to update course access.");
+      console.error(
+        "Course access update error:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Unable to update course access."
+      );
     } finally {
       setSavingId("");
     }
@@ -168,6 +212,7 @@ export default function Admin() {
     }
 
     localStorage.removeItem("adminLoggedIn");
+    localStorage.removeItem("adminId");
     localStorage.removeItem("adminName");
 
     navigate("/admin");
@@ -178,11 +223,13 @@ export default function Admin() {
   ).length;
 
   const googleStudents = students.filter(
-    (student) => student.loginMethod === "google"
+    (student) =>
+      student.loginMethod === "google"
   ).length;
 
   const passwordStudents = students.filter(
-    (student) => student.loginMethod === "password"
+    (student) =>
+      student.loginMethod === "password"
   ).length;
 
   return (
@@ -260,7 +307,8 @@ export default function Admin() {
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                Activate students and control course access.
+                Activate students and control course
+                access.
               </p>
             </div>
 
@@ -288,12 +336,14 @@ export default function Admin() {
           ) : (
             <div className="divide-y divide-gray-100">
               {students.map((student) => {
-                const studentId =
-                  student.studentId || student.documentId;
+                const displayedStudentId =
+                  student.studentId ||
+                  student.documentId;
 
-                const courses = Array.isArray(student.courses)
-                  ? student.courses
-                  : [];
+                const assignedCourses =
+                  Array.isArray(student.courses)
+                    ? student.courses
+                    : [];
 
                 const isSaving =
                   savingId === student.documentId;
@@ -307,7 +357,8 @@ export default function Admin() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <h3 className="text-xl font-bold text-gray-900">
-                            {student.name || "Unnamed Student"}
+                            {student.name ||
+                              "Unnamed Student"}
                           </h3>
 
                           <span
@@ -326,7 +377,7 @@ export default function Admin() {
                         <p className="mt-2 text-sm text-gray-600">
                           Student ID:{" "}
                           <span className="font-semibold text-gray-900">
-                            {studentId}
+                            {displayedStudentId}
                           </span>
                         </p>
 
@@ -339,7 +390,8 @@ export default function Admin() {
                         <p className="mt-1 text-sm text-gray-600">
                           Login method:{" "}
                           <span className="capitalize">
-                            {student.loginMethod || "Not set"}
+                            {student.loginMethod ||
+                              "Not set"}
                           </span>
                         </p>
                       </div>
@@ -370,39 +422,42 @@ export default function Admin() {
                       </h4>
 
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {AVAILABLE_COURSES.map((course) => {
-                          const assigned = courses.includes(
-                            course.id
-                          );
+                        {AVAILABLE_COURSES.map(
+                          (course) => {
+                            const assigned =
+                              assignedCourses.includes(
+                                course.id
+                              );
 
-                          return (
-                            <label
-                              key={course.id}
-                              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
-                                assigned
-                                  ? "border-green-300 bg-green-50"
-                                  : "border-gray-200 bg-white hover:bg-gray-50"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={assigned}
-                                disabled={isSaving}
-                                onChange={() =>
-                                  toggleCourse(
-                                    student,
-                                    course.id
-                                  )
-                                }
-                                className="h-5 w-5 accent-green-600"
-                              />
+                            return (
+                              <label
+                                key={course.id}
+                                className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${
+                                  assigned
+                                    ? "border-green-300 bg-green-50"
+                                    : "border-gray-200 bg-white hover:bg-gray-50"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={assigned}
+                                  disabled={isSaving}
+                                  onChange={() =>
+                                    toggleCourseAccess(
+                                      student,
+                                      course.id
+                                    )
+                                  }
+                                  className="h-5 w-5 accent-green-600"
+                                />
 
-                              <span className="text-sm font-medium text-gray-800">
-                                {course.name}
-                              </span>
-                            </label>
-                          );
-                        })}
+                                <span className="text-sm font-medium text-gray-800">
+                                  {course.name}
+                                </span>
+                              </label>
+                            );
+                          }
+                        )}
                       </div>
                     </div>
                   </article>
