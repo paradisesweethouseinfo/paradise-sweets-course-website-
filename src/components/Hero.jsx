@@ -1,42 +1,180 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 
+const contentContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.12,
+      delayChildren: 0.08,
+    },
+  },
+};
+
+const fadeUp = {
+  hidden: {
+    opacity: 0,
+    y: 36,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.55,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const fadeDown = {
+  hidden: {
+    opacity: 0,
+    y: -24,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
 export default function Hero() {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-100 pt-28 md:pt-36 pb-24">
+    <section className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-green-100 pb-24 pt-28 md:pt-36">
+      {/* Optimized animated background shapes */}
 
-      {/* Background Shapes */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-green-300 opacity-20 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                x: [0, 24, 0],
+                y: [0, 16, 0],
+                scale: [1, 1.06, 1],
+              }
+        }
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        style={{
+          willChange: "transform",
+          transform: "translateZ(0)",
+        }}
+      />
 
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-green-300 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-10 top-40 h-72 w-72 rounded-full bg-emerald-200 opacity-30 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                x: [0, -20, 0],
+                y: [0, 24, 0],
+                scale: [1, 1.08, 1],
+              }
+        }
+        transition={{
+          duration: 12,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 1,
+        }}
+        style={{
+          willChange: "transform",
+          transform: "translateZ(0)",
+        }}
+      />
 
-      <div className="absolute top-40 right-10 w-72 h-72 bg-emerald-200 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-20 left-20 h-56 w-56 rounded-full bg-lime-200 opacity-20 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                x: [0, 18, 0],
+                y: [0, -20, 0],
+                scale: [1, 1.05, 1],
+              }
+        }
+        transition={{
+          duration: 11,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 2,
+        }}
+        style={{
+          willChange: "transform",
+          transform: "translateZ(0)",
+        }}
+      />
 
-      <div className="absolute bottom-20 left-20 w-56 h-56 bg-lime-200 rounded-full blur-3xl opacity-20 animate-pulse"></div>
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-32 right-0 h-[450px] w-[450px] rounded-full bg-green-100 opacity-40 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                x: [0, -25, 0],
+                y: [0, -15, 0],
+                scale: [1, 1.04, 1],
+              }
+        }
+        transition={{
+          duration: 14,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 0.5,
+        }}
+        style={{
+          willChange: "transform",
+          transform: "translateZ(0)",
+        }}
+      />
 
-      <div className="absolute -bottom-32 right-0 w-[450px] h-[450px] bg-green-100 rounded-full blur-3xl opacity-40 animate-pulse"></div>
+      {/* Background pattern */}
 
-      {/* Background Pattern */}
-
-      <div className="absolute inset-0 opacity-[0.03]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+      >
         <div
-          className="w-full h-full"
+          className="h-full w-full"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 1px 1px,#15803d 1px,transparent 0)",
+              "radial-gradient(circle at 1px 1px, #15803d 1px, transparent 0)",
             backgroundSize: "35px 35px",
           }}
         />
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 relative z-10 text-center">
+      {/* Hero content */}
 
-        {/* Academy Name */}
+      <motion.div
+        variants={contentContainer}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10 mx-auto max-w-6xl px-6 text-center"
+      >
+        {/* Academy name */}
 
         <motion.span
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="inline-block bg-green-100 text-green-700 px-5 py-2 rounded-full font-semibold tracking-wide shadow"
+          variants={fadeDown}
+          className="inline-block rounded-full bg-green-100 px-5 py-2 font-semibold tracking-wide text-green-700 shadow"
+          style={{
+            willChange: "transform, opacity",
+          }}
         >
           Paradise Sweets Academy
         </motion.span>
@@ -44,38 +182,44 @@ export default function Hero() {
         {/* Heading */}
 
         <motion.h1
-          initial={{ opacity: 0, y: 80 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1 }}
-          className="mt-8 text-4xl md:text-6xl font-black text-gray-900 leading-tight"
+          variants={fadeUp}
+          className="mt-8 text-4xl font-black leading-tight text-gray-900 md:text-6xl"
+          style={{
+            willChange: "transform, opacity",
+          }}
         >
           Master Professional
           <br />
-          Cakes, Bakery &
+          Cakes, Bakery &amp;
           <span className="text-green-600"> Sweets</span>
         </motion.h1>
 
         {/* Description */}
 
         <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: .3 }}
-          className="mt-8 max-w-3xl mx-auto text-lg md:text-xl text-gray-600 leading-8"
+          variants={fadeUp}
+          className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-gray-600 md:text-xl"
+          style={{
+            willChange: "transform, opacity",
+          }}
         >
           Learn professional baking through structured online lessons designed
           for beginners and aspiring cake artists.
         </motion.p>
 
-        {/* Trust Badge */}
+        {/* Trust badge */}
 
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: .5 }}
-          className="mt-8 flex justify-center items-center gap-2"
+          variants={fadeUp}
+          className="mt-8 flex flex-col items-center justify-center gap-2 sm:flex-row"
+          style={{
+            willChange: "transform, opacity",
+          }}
         >
-          <span className="text-yellow-500 text-xl">
+          <span
+            className="text-xl text-yellow-500"
+            aria-label="Five-star rating"
+          >
             ⭐⭐⭐⭐⭐
           </span>
 
@@ -87,30 +231,27 @@ export default function Hero() {
         {/* Buttons */}
 
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: .6 }}
-          className="flex flex-wrap justify-center gap-5 mt-10"
+          variants={fadeUp}
+          className="mt-10 flex flex-wrap justify-center gap-5"
+          style={{
+            willChange: "transform, opacity",
+          }}
         >
-
           <Link
             to="/courses"
-            className="bg-green-600 text-white px-8 py-4 rounded-full font-semibold shadow-2xl hover:bg-green-700 hover:scale-110 hover:shadow-green-300 transition duration-300"
+            className="rounded-full bg-green-600 px-8 py-4 font-semibold text-white shadow-xl transition duration-300 active:scale-95 md:hover:scale-105 md:hover:bg-green-700 md:hover:shadow-green-300"
           >
             Explore Courses
           </Link>
 
           <Link
             to="/login"
-            className="border-2 border-green-600 text-green-600 px-8 py-4 rounded-full font-semibold hover:bg-green-600 hover:text-white hover:scale-110 hover:shadow-xl transition duration-300"
+            className="rounded-full border-2 border-green-600 px-8 py-4 font-semibold text-green-600 transition duration-300 active:scale-95 md:hover:scale-105 md:hover:bg-green-600 md:hover:text-white md:hover:shadow-xl"
           >
             Student Login
           </Link>
-
         </motion.div>
-
-      </div>
-
+      </motion.div>
     </section>
   );
 }

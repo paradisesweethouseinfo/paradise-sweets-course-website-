@@ -16,53 +16,196 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import {
+  motion,
+  useReducedMotion,
+} from "framer-motion";
 import { auth, db } from "../firebase/firebase";
+
+const GOOGLE_PROVIDER = new GoogleAuthProvider();
+
+GOOGLE_PROVIDER.setCustomParameters({
+  prompt: "select_account",
+});
+
+const pageVariants = {
+  hidden: {
+    opacity: 0,
+  },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.35,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: {
+    opacity: 0,
+    y: 30,
+    scale: 0.98,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+function saveStudentSession(
+  studentIdValue,
+  student,
+  firebaseUser = null
+) {
+  const realStudentName =
+    student.name ||
+    firebaseUser?.displayName ||
+    "Student";
+
+  const realStudentEmail =
+    student.email ||
+    firebaseUser?.email ||
+    "";
+
+  const studentCourses = Array.isArray(
+    student.courses
+  )
+    ? student.courses
+    : [];
+
+  localStorage.setItem(
+    "studentLoggedIn",
+    "true"
+  );
+
+  localStorage.setItem(
+    "studentId",
+    studentIdValue
+  );
+
+  localStorage.setItem(
+    "studentName",
+    realStudentName
+  );
+
+  localStorage.setItem(
+    "studentEmail",
+    realStudentEmail
+  );
+
+  localStorage.setItem(
+    "studentCourses",
+    JSON.stringify(studentCourses)
+  );
+}
+
+function getPasswordLoginError(error) {
+  if (
+    error.code === "auth/invalid-credential" ||
+    error.code === "auth/user-not-found" ||
+    error.code === "auth/wrong-password"
+  ) {
+    return "Incorrect Student ID or password.";
+  }
+
+  if (error.code === "auth/too-many-requests") {
+    return "Too many attempts. Please try again later.";
+  }
+
+  if (
+    error.code === "auth/network-request-failed"
+  ) {
+    return "Network error. Check your internet connection.";
+  }
+
+  return error.message || "Login failed.";
+}
+
+function getGoogleLoginError(error) {
+  if (
+    error.code === "auth/popup-closed-by-user"
+  ) {
+    return "Google Sign-In was cancelled.";
+  }
+
+  if (error.code === "auth/popup-blocked") {
+    return "The browser blocked the Google login window.";
+  }
+
+  if (
+    error.code === "auth/unauthorized-domain"
+  ) {
+    return "This website domain is not authorized in Firebase Authentication.";
+  }
+
+  if (
+    error.code === "auth/network-request-failed"
+  ) {
+    return "Network error. Check your internet connection.";
+  }
+
+  if (
+    error.code === "permission-denied" ||
+    error.code ===
+      "firestore/permission-denied"
+  ) {
+    return "Firestore permission denied. Please check your Firestore security rules.";
+  }
+
+  return (
+    error.message ||
+    "Google Sign-In failed."
+  );
+}
 
 export default function Login() {
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
 
-  const [studentId, setStudentId] = useState("");
-  const [password, setPassword] = useState("");
+  const [studentId, setStudentId] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
   const [error, setError] = useState("");
-  const [loadingType, setLoadingType] = useState("");
 
-  const saveStudentSession = (
-    studentIdValue,
-    student,
-    firebaseUser = null
+  const [loadingType, setLoadingType] =
+    useState("");
+
+  const isLoading = loadingType !== "";
+
+  const handlePasswordLogin = async (
+    event
   ) => {
-    const realStudentName =
-      student.name ||
-      firebaseUser?.displayName ||
-      "Student";
-
-    const realStudentEmail =
-      student.email ||
-      firebaseUser?.email ||
-      "";
-
-    localStorage.setItem("studentLoggedIn", "true");
-    localStorage.setItem("studentId", studentIdValue);
-    localStorage.setItem("studentName", realStudentName);
-    localStorage.setItem("studentEmail", realStudentEmail);
-
-    localStorage.setItem(
-      "studentCourses",
-      JSON.stringify(
-        Array.isArray(student.courses)
-          ? student.courses
-          : []
-      )
-    );
-  };
-
-  const handlePasswordLogin = async (event) => {
     event.preventDefault();
+
+    const cleanStudentId =
+      studentId.trim();
+
+    if (!cleanStudentId) {
+      setError(
+        "Please enter your Student ID."
+      );
+
+      return;
+    }
+
+    if (!password) {
+      setError(
+        "Please enter your password."
+      );
+
+      return;
+    }
 
     setError("");
     setLoadingType("password");
-
-    const cleanStudentId = studentId.trim();
 
     try {
       const internalEmail =
@@ -86,21 +229,44 @@ export default function Login() {
 
       if (!studentSnapshot.exists()) {
         await signOut(auth);
-        setError("Student account was not found.");
+
+        setError(
+          "Student account was not found."
+        );
+
         return;
       }
 
-      const student = studentSnapshot.data();
+      const student =
+        studentSnapshot.data();
 
       if (student.active !== true) {
         await signOut(auth);
-        setError("Your account has been disabled.");
+
+        setError(
+          "Your account has been disabled."
+        );
+
+        return;
+      }
+
+      if (
+        student.loginMethod &&
+        student.loginMethod !== "password"
+      ) {
+        await signOut(auth);
+
+        setError(
+          "This student account is configured for Google Login."
+        );
+
         return;
       }
 
       if (
         student.uid &&
-        student.uid !== userCredential.user.uid
+        student.uid !==
+          userCredential.user.uid
       ) {
         await signOut(auth);
 
@@ -111,41 +277,36 @@ export default function Login() {
         return;
       }
 
+      if (!student.uid) {
+        await updateDoc(
+          studentReference,
+          {
+            uid: userCredential.user.uid,
+          }
+        );
+      }
+
       saveStudentSession(
         cleanStudentId,
-        student,
+        {
+          ...student,
+          uid: userCredential.user.uid,
+        },
         userCredential.user
       );
 
-      navigate("/courses");
-    } catch (err) {
-      console.error("Password login error:", err);
+      navigate("/courses", {
+        replace: true,
+      });
+    } catch (loginError) {
+      console.error(
+        "Password login error:",
+        loginError
+      );
 
-      if (
-        err.code === "auth/invalid-credential" ||
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password"
-      ) {
-        setError(
-          "Incorrect Student ID or password."
-        );
-      } else if (
-        err.code === "auth/too-many-requests"
-      ) {
-        setError(
-          "Too many attempts. Please try again later."
-        );
-      } else if (
-        err.code === "auth/network-request-failed"
-      ) {
-        setError(
-          "Network error. Check your internet connection."
-        );
-      } else {
-        setError(
-          err.message || "Login failed."
-        );
-      }
+      setError(
+        getPasswordLoginError(loginError)
+      );
     } finally {
       setLoadingType("");
     }
@@ -155,22 +316,20 @@ export default function Login() {
     setError("");
     setLoadingType("google");
 
-    const provider = new GoogleAuthProvider();
-
-    provider.setCustomParameters({
-      prompt: "select_account",
-    });
-
     try {
       const userCredential =
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(
+          auth,
+          GOOGLE_PROVIDER
+        );
 
       const user = userCredential.user;
 
-      const googleEmail =
-        String(user.email || "")
-          .trim()
-          .toLowerCase();
+      const googleEmail = String(
+        user.email || ""
+      )
+        .trim()
+        .toLowerCase();
 
       if (!googleEmail) {
         await signOut(auth);
@@ -184,7 +343,11 @@ export default function Login() {
 
       const studentQuery = query(
         collection(db, "students"),
-        where("email", "==", googleEmail),
+        where(
+          "email",
+          "==",
+          googleEmail
+        ),
         limit(1)
       );
 
@@ -207,7 +370,9 @@ export default function Login() {
       const student =
         studentDocument.data();
 
-      if (student.loginMethod !== "google") {
+      if (
+        student.loginMethod !== "google"
+      ) {
         await signOut(auth);
 
         setError(
@@ -266,63 +431,94 @@ export default function Login() {
         user
       );
 
-      navigate("/courses");
-    } catch (err) {
-      console.error("Google login error:", err);
+      navigate("/courses", {
+        replace: true,
+      });
+    } catch (loginError) {
+      console.error(
+        "Google login error:",
+        loginError
+      );
 
-      if (
-        err.code === "auth/popup-closed-by-user"
-      ) {
-        setError(
-          "Google Sign-In was cancelled."
-        );
-      } else if (
-        err.code === "auth/popup-blocked"
-      ) {
-        setError(
-          "The browser blocked the Google login window."
-        );
-      } else if (
-        err.code === "auth/unauthorized-domain"
-      ) {
-        setError(
-          "This website domain is not authorized in Firebase Authentication."
-        );
-      } else if (
-        err.code === "auth/network-request-failed"
-      ) {
-        setError(
-          "Network error. Check your internet connection."
-        );
-      } else if (
-        err.code === "permission-denied"
-      ) {
-        setError(
-          "Firestore permission denied. Replace the Firestore Rules with the rules provided below."
-        );
-      } else {
-        setError(
-          err.message || "Google Sign-In failed."
-        );
-      }
+      setError(
+        getGoogleLoginError(loginError)
+      );
     } finally {
       setLoadingType("");
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-100 via-white to-green-50 px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+    <motion.main
+      variants={
+        reduceMotion
+          ? undefined
+          : pageVariants
+      }
+      initial={
+        reduceMotion
+          ? false
+          : "hidden"
+      }
+      animate={
+        reduceMotion
+          ? undefined
+          : "visible"
+      }
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-green-100 via-white to-green-50 px-4 py-12"
+    >
+      {/* Background decoration */}
 
+      <div
+        aria-hidden="true"
+        className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-green-200/40 blur-3xl"
+      />
+
+      <div
+        aria-hidden="true"
+        className="absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-green-300/30 blur-3xl"
+      />
+
+      <motion.section
+        variants={
+          reduceMotion
+            ? undefined
+            : cardVariants
+        }
+        initial={
+          reduceMotion
+            ? false
+            : "hidden"
+        }
+        animate={
+          reduceMotion
+            ? undefined
+            : "visible"
+        }
+        aria-labelledby="student-login-title"
+        className="relative z-10 w-full max-w-md rounded-3xl border border-white/70 bg-white/95 p-7 shadow-2xl backdrop-blur-sm sm:p-8"
+        style={{
+          willChange: reduceMotion
+            ? "auto"
+            : "transform, opacity",
+          transform: "translateZ(0)",
+          backfaceVisibility: "hidden",
+        }}
+      >
         <div className="mb-5 flex justify-center">
           <img
             src="/logo.png"
             alt="Paradise Sweets Academy"
+            decoding="async"
+            draggable="false"
             className="h-24 w-24 object-contain"
           />
         </div>
 
-        <h1 className="text-center text-3xl font-bold text-green-700">
+        <h1
+          id="student-login-title"
+          className="text-center text-3xl font-bold text-green-700"
+        >
           Student Login
         </h1>
 
@@ -331,7 +527,11 @@ export default function Login() {
         </p>
 
         {error && (
-          <div className="mb-4 break-words rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-700">
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-4 break-words rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
             {error}
           </div>
         )}
@@ -353,13 +553,21 @@ export default function Login() {
               name="studentId"
               type="text"
               autoComplete="username"
+              autoCapitalize="none"
+              spellCheck="false"
               placeholder="Enter Student ID"
               value={studentId}
+              disabled={isLoading}
               onChange={(event) => {
-                setStudentId(event.target.value);
-                setError("");
+                setStudentId(
+                  event.target.value
+                );
+
+                if (error) {
+                  setError("");
+                }
               }}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 outline-none transition-colors duration-200 placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-70"
               required
             />
           </div>
@@ -379,19 +587,25 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="Enter Password"
               value={password}
+              disabled={isLoading}
               onChange={(event) => {
-                setPassword(event.target.value);
-                setError("");
+                setPassword(
+                  event.target.value
+                );
+
+                if (error) {
+                  setError("");
+                }
               }}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200"
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-900 outline-none transition-colors duration-200 placeholder:text-gray-400 focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-70"
               required
             />
           </div>
 
           <button
             type="submit"
-            disabled={loadingType !== ""}
-            className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isLoading}
+            className="w-full rounded-xl bg-green-600 py-3 font-semibold text-white transition duration-200 active:scale-[0.98] active:bg-green-700 md:hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loadingType === "password"
               ? "Signing in..."
@@ -402,7 +616,7 @@ export default function Login() {
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-gray-200" />
 
-          <span className="text-sm text-gray-400">
+          <span className="text-sm font-medium text-gray-400">
             OR
           </span>
 
@@ -412,10 +626,13 @@ export default function Login() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loadingType !== ""}
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isLoading}
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3 font-semibold text-gray-700 transition duration-200 active:scale-[0.98] active:bg-gray-50 md:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="text-xl font-bold text-blue-600">
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-lg font-bold text-blue-600"
+          >
             G
           </span>
 
@@ -424,12 +641,12 @@ export default function Login() {
             : "Continue with Google"}
         </button>
 
-        <p className="mt-8 text-center text-sm text-gray-500">
-          Existing students can use Student ID and
-          password. New students can use Google
-          Sign-In.
+        <p className="mt-8 text-center text-sm leading-6 text-gray-500">
+          Existing students can use Student ID
+          and password. Students enrolled with a
+          Gmail account can use Google Sign-In.
         </p>
-      </div>
-    </div>
+      </motion.section>
+    </motion.main>
   );
 }

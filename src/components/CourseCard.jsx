@@ -1,39 +1,42 @@
-export default function CourseCard({ image, title, description }) {
+import { memo } from "react";
 
-    return (
+function CourseCard({
+  image,
+  title,
+  description,
+  onViewCourse,
+}) {
+  return (
+    <article className="card group overflow-hidden transform-gpu">
+      <div className="relative overflow-hidden bg-gray-100">
+        <img
+          src={image}
+          alt={title}
+          loading="lazy"
+          decoding="async"
+          className="h-64 w-full object-cover transition-transform duration-500 ease-out md:group-hover:scale-105"
+        />
+      </div>
 
-        <div className="card overflow-hidden">
+      <div className="p-7">
+        <h3 className="text-2xl font-bold text-gray-900">
+          {title}
+        </h3>
 
-            <img
-                src={image}
-                className="w-full h-64 object-cover"
-                alt={title}
-            />
+        <p className="mt-4 leading-7 text-gray-600">
+          {description}
+        </p>
 
-            <div className="p-7">
-
-                <h3 className="text-2xl font-bold">
-
-                    {title}
-
-                </h3>
-
-                <p className="text-gray-600 mt-4 leading-7">
-
-                    {description}
-
-                </p>
-
-                <button className="btn btn-primary mt-6">
-
-                    View Course
-
-                </button>
-
-            </div>
-
-        </div>
-
-    );
-
+        <button
+          type="button"
+          onClick={onViewCourse}
+          className="btn btn-primary mt-6 transition-transform duration-300 active:scale-95 md:hover:-translate-y-0.5"
+        >
+          View Course
+        </button>
+      </div>
+    </article>
+  );
 }
+
+export default memo(CourseCard);
