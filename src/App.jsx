@@ -6,6 +6,8 @@ import {
   Navigate,
 } from "react-router-dom";
 
+import ScrollToTop from "./components/ScrollToTop";
+
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
@@ -35,16 +37,31 @@ function WebsiteLayout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <ScrollToTop />
 
+      <Routes>
         {/* Normal website pages with Navbar and Footer */}
+
         <Route element={<WebsiteLayout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/login" element={<Login />} />
+
+          <Route
+            path="/about"
+            element={<About />}
+          />
+
+          <Route
+            path="/contact"
+            element={<Contact />}
+          />
+
+          <Route
+            path="/login"
+            element={<Login />}
+          />
 
           {/* Student protected pages */}
+
           <Route
             path="/courses"
             element={
@@ -65,12 +82,14 @@ export default function App() {
         </Route>
 
         {/* Admin login without Navbar and Footer */}
+
         <Route
           path="/admin"
           element={<AdminLogin />}
         />
 
         {/* Admin dashboard without Navbar and Footer */}
+
         <Route
           path="/admin/dashboard"
           element={
@@ -81,11 +100,11 @@ export default function App() {
         />
 
         {/* Unknown pages return home */}
+
         <Route
           path="*"
           element={<Navigate to="/" replace />}
         />
-
       </Routes>
     </BrowserRouter>
   );
