@@ -36,7 +36,7 @@ const LESSONS = [
   {
     day: "Day 06",
     video:
-      "https://www.youtube.com/embed/YOUR_VIDEO_ID_6",
+      "https://www.youtube.com/embed/_oSvT4jCe-4",
   },
   {
     day: "Day 07",
